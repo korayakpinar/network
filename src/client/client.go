@@ -9,8 +9,6 @@ import (
 	"sync"
 
 	"github.com/korayakpinar/p2pclient/src/handler"
-	"github.com/korayakpinar/p2pclient/src/price"
-	"github.com/korayakpinar/p2pclient/src/ws"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -22,11 +20,11 @@ import (
 )
 
 type Client struct {
-	Host       host.Host
-	PubSub     *pubsub.PubSub
-	DHT        *kaddht.IpfsDHT
-	Handler    *handler.Handler
-	publishers []peer.ID
+	Host      host.Host
+	PubSub    *pubsub.PubSub
+	DHT       *kaddht.IpfsDHT
+	Handler   *handler.Handler
+	operators []peer.ID
 }
 
 type discoveryNotifee struct {
@@ -95,10 +93,10 @@ func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan ch
 
 	inspector := func(pid peer.ID, rpc *pubsub.RPC) error {
 		//TODO: check if the peer is a publisher
-		/* if utils.IsPublisher(pid) {
+		/* if utils.IsOperator(pid) {
 			return nil
 		} else {
-			return errors.New("not a publisher")
+			return errors.New("not a operator")
 		} */
 		return nil
 	}
@@ -145,17 +143,10 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	// TODO: Remove this, it's just for testing
 	go streamConsoleTo(ctx, topicHandle)
 
-	// Initialize the price cache
-	cache := price.NewCache()
-
 	// Initialize the handler and start it
-	handler := handler.NewHandler(sub, cache)
+	handler := handler.NewHandler(sub)
 	cli.Handler = handler
 	go handler.Start(ctx, errChan)
-
-	// Start the WS server
-	server := ws.NewServer(cache)
-	go server.Start(ctx, errChan)
 
 	select {
 	case err := <-errChan:
@@ -205,25 +196,25 @@ func streamConsoleTo(ctx context.Context, topic *pubsub.Topic) {
 	}
 }
 
-func (cli *Client) AddPublisher(p peer.ID) {
-	cli.publishers = append(cli.publishers, p)
+func (cli *Client) AddOperator(p peer.ID) {
+	cli.operators = append(cli.operators, p)
 }
 
-func (cli *Client) RemovePublisher(p peer.ID) {
-	for i, pub := range cli.publishers {
+func (cli *Client) RemoveOperator(p peer.ID) {
+	for i, pub := range cli.operators {
 		if pub == p {
-			cli.publishers = append(cli.publishers[:i], cli.publishers[i+1:]...)
+			cli.operators = append(cli.operators[:i], cli.operators[i+1:]...)
 			break
 		}
 	}
 }
 
-func (cli *Client) GetPublishers() []peer.ID {
-	return cli.publishers
+func (cli *Client) GetOperators() []peer.ID {
+	return cli.operators
 }
 
 func (cli *Client) IsPublisher(p peer.ID) bool {
-	for _, pub := range cli.publishers {
+	for _, pub := range cli.operators {
 		if pub == p {
 			return true
 		}

@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/korayakpinar/p2pclient/src/price"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
 type Handler struct {
-	sub        *pubsub.Subscription
-	priceCache *price.Cache
+	sub *pubsub.Subscription
 }
 
-func NewHandler(sub *pubsub.Subscription, priceCache *price.Cache) *Handler {
-	return &Handler{sub: sub, priceCache: priceCache}
+func NewHandler(sub *pubsub.Subscription) *Handler {
+	return &Handler{sub: sub}
 }
 
 func (h *Handler) Start(ctx context.Context, errChan chan error) {
