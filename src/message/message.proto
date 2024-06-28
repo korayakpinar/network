@@ -1,0 +1,26 @@
+syntax = "proto3";
+option go_package="src/message";
+
+import "src/message/transaction.proto";
+import "src/message/batch.proto";
+import "src/message/partial.proto";
+import "src/message/ordersig.proto";
+
+message Message {
+    oneof message {
+        EncryptedTransaction encrypted_transaction = 1;
+        EncryptedBatch encrypted_batch = 2;
+        PartialDecryption partial_decryption = 3;
+        OrderSignature order_signature = 4;
+    }
+
+    MessageType message_type = 5;
+}
+
+enum MessageType {
+    UNKNOWN = 0;
+    ENCRYPTED_TRANSACTION = 1;
+    ENCRYPTED_BATCH = 2;
+    PARTIAL_DECRYPTION = 3;
+    ORDER_SIGNATURE = 4;
+}

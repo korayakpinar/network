@@ -1,7 +1,7 @@
 syntax = "proto3";
-option go_package="src/handler/";
+option go_package="src/message";
 
-import "src/handler/transaction.proto";
+import "src/message/transaction.proto";
 
 message EncryptedBatch {
     BatchHeader header = 1;

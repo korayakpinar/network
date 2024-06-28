@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package="src/handler/";
+option go_package="src/message";
 
 message EncryptedTransaction {
     TransactionHeader header = 1;

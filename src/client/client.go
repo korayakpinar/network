@@ -144,7 +144,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	go streamConsoleTo(ctx, topicHandle)
 
 	// Initialize the handler and start it
-	handler := handler.NewHandler(sub)
+	handler := handler.NewHandler(sub, topicHandle)
 	cli.Handler = handler
 	go handler.Start(ctx, errChan)
 
