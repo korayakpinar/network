@@ -1,0 +1,17 @@
+syntax = "proto3";
+option go_package="src/handler/";
+
+message EncryptedTransaction {
+    TransactionHeader header = 1;
+    TransactionBody body = 2;
+}
+
+message TransactionHeader {
+    string hash = 1;
+    string gammaG2 = 2;
+}
+
+message TransactionBody {
+    string decryptParams = 1;
+    repeated uint32 pkIDs = 2;
+}

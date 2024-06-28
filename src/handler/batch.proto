@@ -1,0 +1,18 @@
+syntax = "proto3";
+option go_package="src/handler/";
+
+import "src/handler/transaction.proto";
+
+message EncryptedBatch {
+    BatchHeader header = 1;
+    BatchBody body = 2;
+}
+
+message BatchHeader {
+    int32 leaderID = 1;
+    string hash = 2;
+}
+
+message BatchBody {
+    repeated TransactionHeader transactions = 1;
+}

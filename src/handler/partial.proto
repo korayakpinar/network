@@ -1,0 +1,9 @@
+syntax = "proto3";
+option go_package="src/handler/";
+
+import "src/handler/transaction.proto";
+
+message PartialDecryption {
+    string txHash = 1;
+    string partDec = 2;
+}
