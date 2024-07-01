@@ -3,12 +3,14 @@ package client
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"sync"
 
 	"github.com/korayakpinar/p2pclient/src/handler"
+	"github.com/korayakpinar/p2pclient/src/utils"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -92,12 +94,12 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan chan error) (topic *pubsub.Topic) {
 
 	inspector := func(pid peer.ID, rpc *pubsub.RPC) error {
-		//TODO: check if the peer is a publisher
-		/* if utils.IsOperator(pid) {
+
+		if utils.IsOperator(pid) {
 			return nil
 		} else {
 			return errors.New("not a operator")
-		} */
+		}
 		return nil
 	}
 

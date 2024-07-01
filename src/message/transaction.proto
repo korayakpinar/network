@@ -12,6 +12,9 @@ message TransactionHeader {
 }
 
 message TransactionBody {
-    string decryptParams = 1;
-    repeated uint32 pkIDs = 2;
+    repeated uint32 pkIDs = 1;  // List of public key IDs
+    repeated string sa1 = 2;    // String array of length 2
+    repeated string sa2 = 3;    // String array of length 6
+    bytes iv = 4;               // Initialization vector for AES256, 16 bytes long
+    uint32 t = 5;               // Unsigned integer field
 }

@@ -68,7 +68,7 @@ func IdToEthAddress(id peer.ID) (string, error) {
 	return ethAddress, nil
 }
 
-func IsStaker(id peer.ID) bool {
+func IsOperator(id peer.ID) bool {
 	addr, err := IdToEthAddress(id)
 	if err != nil {
 		panic(err)
