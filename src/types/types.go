@@ -13,11 +13,11 @@ type EncryptedTransaction struct {
 type TransactionHeader struct {
 	Hash    TxHash
 	GammaG2 string
+	PkIDs   []uint32
 }
 
 // TransactionBody represents the body of the transaction
 type TransactionBody struct {
-	PkIDs     []uint32
 	Sa1       []string
 	Sa2       []string
 	Iv        string

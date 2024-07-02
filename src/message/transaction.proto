@@ -9,13 +9,13 @@ message EncryptedTransaction {
 message TransactionHeader {
     string hash = 1;
     string gammaG2 = 2;
+    repeated uint32 pkIDs = 3;  // List of public key IDs
 }
 
 message TransactionBody {
-    repeated uint32 pkIDs = 1;  // List of public key IDs
-    repeated string sa1 = 2;    // String array of length 2
-    repeated string sa2 = 3;    // String array of length 6
-    string iv = 4;               // Initialization vector for AES256, 16 bytes long
-    string encText = 5;         // Encrypted text
-    uint32 t = 6;               // Unsigned integer field
+    repeated string sa1 = 1;    // String array of length 2
+    repeated string sa2 = 2;    // String array of length 6
+    string iv = 3;               // Initialization vector for AES256, 16 bytes long
+    string encText = 4;         // Encrypted text
+    uint32 t = 5;               // Unsigned integer field
 }

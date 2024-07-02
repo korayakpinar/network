@@ -26,13 +26,14 @@ type DecryptDataRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Enc string   `protobuf:"bytes,1,opt,name=enc,proto3" json:"enc,omitempty"`
-	Pks []string `protobuf:"bytes,2,rep,name=pks,proto3" json:"pks,omitempty"`
-	Sa1 string   `protobuf:"bytes,3,opt,name=sa1,proto3" json:"sa1,omitempty"`
-	Sa2 string   `protobuf:"bytes,4,opt,name=sa2,proto3" json:"sa2,omitempty"`
-	Iv  string   `protobuf:"bytes,5,opt,name=iv,proto3" json:"iv,omitempty"`
-	T   uint64   `protobuf:"varint,6,opt,name=t,proto3" json:"t,omitempty"`
-	N   uint64   `protobuf:"varint,7,opt,name=n,proto3" json:"n,omitempty"`
+	Enc   string   `protobuf:"bytes,1,opt,name=enc,proto3" json:"enc,omitempty"`
+	Pks   []string `protobuf:"bytes,2,rep,name=pks,proto3" json:"pks,omitempty"`
+	Parts []string `protobuf:"bytes,3,rep,name=parts,proto3" json:"parts,omitempty"`
+	Sa1   []string `protobuf:"bytes,4,rep,name=sa1,proto3" json:"sa1,omitempty"`
+	Sa2   []string `protobuf:"bytes,5,rep,name=sa2,proto3" json:"sa2,omitempty"`
+	Iv    string   `protobuf:"bytes,6,opt,name=iv,proto3" json:"iv,omitempty"`
+	T     uint64   `protobuf:"varint,7,opt,name=t,proto3" json:"t,omitempty"`
+	N     uint64   `protobuf:"varint,8,opt,name=n,proto3" json:"n,omitempty"`
 }
 
 func (x *DecryptDataRequest) Reset() {
@@ -81,18 +82,25 @@ func (x *DecryptDataRequest) GetPks() []string {
 	return nil
 }
 
-func (x *DecryptDataRequest) GetSa1() string {
+func (x *DecryptDataRequest) GetParts() []string {
+	if x != nil {
+		return x.Parts
+	}
+	return nil
+}
+
+func (x *DecryptDataRequest) GetSa1() []string {
 	if x != nil {
 		return x.Sa1
 	}
-	return ""
+	return nil
 }
 
-func (x *DecryptDataRequest) GetSa2() string {
+func (x *DecryptDataRequest) GetSa2() []string {
 	if x != nil {
 		return x.Sa2
 	}
-	return ""
+	return nil
 }
 
 func (x *DecryptDataRequest) GetIv() string {
@@ -116,53 +124,6 @@ func (x *DecryptDataRequest) GetN() uint64 {
 	return 0
 }
 
-type DecryptDataResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Result string `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
-}
-
-func (x *DecryptDataResponse) Reset() {
-	*x = DecryptDataResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_src_api_api_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *DecryptDataResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DecryptDataResponse) ProtoMessage() {}
-
-func (x *DecryptDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_src_api_api_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DecryptDataResponse.ProtoReflect.Descriptor instead.
-func (*DecryptDataResponse) Descriptor() ([]byte, []int) {
-	return file_src_api_api_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *DecryptDataResponse) GetResult() string {
-	if x != nil {
-		return x.Result
-	}
-	return ""
-}
-
 // PartialDecrypt function messages
 type PartialDecryptRequest struct {
 	state         protoimpl.MessageState
@@ -175,7 +136,7 @@ type PartialDecryptRequest struct {
 func (x *PartialDecryptRequest) Reset() {
 	*x = PartialDecryptRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_src_api_api_proto_msgTypes[2]
+		mi := &file_src_api_api_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -188,7 +149,7 @@ func (x *PartialDecryptRequest) String() string {
 func (*PartialDecryptRequest) ProtoMessage() {}
 
 func (x *PartialDecryptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_src_api_api_proto_msgTypes[2]
+	mi := &file_src_api_api_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -201,59 +162,12 @@ func (x *PartialDecryptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartialDecryptRequest.ProtoReflect.Descriptor instead.
 func (*PartialDecryptRequest) Descriptor() ([]byte, []int) {
-	return file_src_api_api_proto_rawDescGZIP(), []int{2}
+	return file_src_api_api_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PartialDecryptRequest) GetGammaG2() string {
 	if x != nil {
 		return x.GammaG2
-	}
-	return ""
-}
-
-type PartialDecryptResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Result string `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
-}
-
-func (x *PartialDecryptResponse) Reset() {
-	*x = PartialDecryptResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_src_api_api_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *PartialDecryptResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PartialDecryptResponse) ProtoMessage() {}
-
-func (x *PartialDecryptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_src_api_api_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PartialDecryptResponse.ProtoReflect.Descriptor instead.
-func (*PartialDecryptResponse) Descriptor() ([]byte, []int) {
-	return file_src_api_api_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *PartialDecryptResponse) GetResult() string {
-	if x != nil {
-		return x.Result
 	}
 	return ""
 }
@@ -272,7 +186,7 @@ type VerifyPartRequest struct {
 func (x *VerifyPartRequest) Reset() {
 	*x = VerifyPartRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_src_api_api_proto_msgTypes[4]
+		mi := &file_src_api_api_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -285,7 +199,7 @@ func (x *VerifyPartRequest) String() string {
 func (*VerifyPartRequest) ProtoMessage() {}
 
 func (x *VerifyPartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_src_api_api_proto_msgTypes[4]
+	mi := &file_src_api_api_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -298,7 +212,7 @@ func (x *VerifyPartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyPartRequest.ProtoReflect.Descriptor instead.
 func (*VerifyPartRequest) Descriptor() ([]byte, []int) {
-	return file_src_api_api_proto_rawDescGZIP(), []int{4}
+	return file_src_api_api_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *VerifyPartRequest) GetPk() string {
@@ -322,7 +236,8 @@ func (x *VerifyPartRequest) GetPartDec() string {
 	return ""
 }
 
-type VerifyPartResponse struct {
+// Response message
+type Response struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -330,23 +245,23 @@ type VerifyPartResponse struct {
 	Result string `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
 }
 
-func (x *VerifyPartResponse) Reset() {
-	*x = VerifyPartResponse{}
+func (x *Response) Reset() {
+	*x = Response{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_src_api_api_proto_msgTypes[5]
+		mi := &file_src_api_api_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *VerifyPartResponse) String() string {
+func (x *Response) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*VerifyPartResponse) ProtoMessage() {}
+func (*Response) ProtoMessage() {}
 
-func (x *VerifyPartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_src_api_api_proto_msgTypes[5]
+func (x *Response) ProtoReflect() protoreflect.Message {
+	mi := &file_src_api_api_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -357,12 +272,12 @@ func (x *VerifyPartResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use VerifyPartResponse.ProtoReflect.Descriptor instead.
-func (*VerifyPartResponse) Descriptor() ([]byte, []int) {
-	return file_src_api_api_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use Response.ProtoReflect.Descriptor instead.
+func (*Response) Descriptor() ([]byte, []int) {
+	return file_src_api_api_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *VerifyPartResponse) GetResult() string {
+func (x *Response) GetResult() string {
 	if x != nil {
 		return x.Result
 	}
@@ -373,34 +288,29 @@ var File_src_api_api_proto protoreflect.FileDescriptor
 
 var file_src_api_api_proto_rawDesc = []byte{
 	0x0a, 0x11, 0x73, 0x72, 0x63, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x61, 0x70, 0x69, 0x2e, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x22, 0x88, 0x01, 0x0a, 0x12, 0x44, 0x65, 0x63, 0x72, 0x79, 0x70, 0x74, 0x44,
+	0x6f, 0x74, 0x6f, 0x22, 0x9e, 0x01, 0x0a, 0x12, 0x44, 0x65, 0x63, 0x72, 0x79, 0x70, 0x74, 0x44,
 	0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x65, 0x6e,
 	0x63, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x65, 0x6e, 0x63, 0x12, 0x10, 0x0a, 0x03,
-	0x70, 0x6b, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x03, 0x70, 0x6b, 0x73, 0x12, 0x10,
-	0x0a, 0x03, 0x73, 0x61, 0x31, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x73, 0x61, 0x31,
-	0x12, 0x10, 0x0a, 0x03, 0x73, 0x61, 0x32, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x73,
-	0x61, 0x32, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x76, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02,
-	0x69, 0x76, 0x12, 0x0c, 0x0a, 0x01, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x04, 0x52, 0x01, 0x74,
-	0x12, 0x0c, 0x0a, 0x01, 0x6e, 0x18, 0x07, 0x20, 0x01, 0x28, 0x04, 0x52, 0x01, 0x6e, 0x22, 0x2d,
-	0x0a, 0x13, 0x44, 0x65, 0x63, 0x72, 0x79, 0x70, 0x74, 0x44, 0x61, 0x74, 0x61, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x22, 0x31, 0x0a,
-	0x15, 0x50, 0x61, 0x72, 0x74, 0x69, 0x61, 0x6c, 0x44, 0x65, 0x63, 0x72, 0x79, 0x70, 0x74, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47,
-	0x32, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32,
-	0x22, 0x30, 0x0a, 0x16, 0x50, 0x61, 0x72, 0x74, 0x69, 0x61, 0x6c, 0x44, 0x65, 0x63, 0x72, 0x79,
-	0x70, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65,
-	0x73, 0x75, 0x6c, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x73, 0x75,
-	0x6c, 0x74, 0x22, 0x57, 0x0a, 0x11, 0x56, 0x65, 0x72, 0x69, 0x66, 0x79, 0x50, 0x61, 0x72, 0x74,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x70, 0x6b, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x02, 0x70, 0x6b, 0x12, 0x18, 0x0a, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61,
-	0x47, 0x32, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47,
-	0x32, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x61, 0x72, 0x74, 0x44, 0x65, 0x63, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x07, 0x70, 0x61, 0x72, 0x74, 0x44, 0x65, 0x63, 0x22, 0x2c, 0x0a, 0x12, 0x56,
-	0x65, 0x72, 0x69, 0x66, 0x79, 0x50, 0x61, 0x72, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
-	0x65, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x42, 0x09, 0x5a, 0x07, 0x73, 0x72, 0x63,
-	0x2f, 0x61, 0x70, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x70, 0x6b, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x03, 0x70, 0x6b, 0x73, 0x12, 0x14,
+	0x0a, 0x05, 0x70, 0x61, 0x72, 0x74, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x05, 0x70,
+	0x61, 0x72, 0x74, 0x73, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x61, 0x31, 0x18, 0x04, 0x20, 0x03, 0x28,
+	0x09, 0x52, 0x03, 0x73, 0x61, 0x31, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x61, 0x32, 0x18, 0x05, 0x20,
+	0x03, 0x28, 0x09, 0x52, 0x03, 0x73, 0x61, 0x32, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x76, 0x18, 0x06,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x76, 0x12, 0x0c, 0x0a, 0x01, 0x74, 0x18, 0x07, 0x20,
+	0x01, 0x28, 0x04, 0x52, 0x01, 0x74, 0x12, 0x0c, 0x0a, 0x01, 0x6e, 0x18, 0x08, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x01, 0x6e, 0x22, 0x31, 0x0a, 0x15, 0x50, 0x61, 0x72, 0x74, 0x69, 0x61, 0x6c, 0x44,
+	0x65, 0x63, 0x72, 0x79, 0x70, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x18, 0x0a,
+	0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07,
+	0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x22, 0x57, 0x0a, 0x11, 0x56, 0x65, 0x72, 0x69, 0x66,
+	0x79, 0x50, 0x61, 0x72, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02,
+	0x70, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x70, 0x6b, 0x12, 0x18, 0x0a, 0x07,
+	0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x67,
+	0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x61, 0x72, 0x74, 0x44, 0x65,
+	0x63, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x61, 0x72, 0x74, 0x44, 0x65, 0x63,
+	0x22, 0x22, 0x0a, 0x08, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x16, 0x0a, 0x06,
+	0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x42, 0x09, 0x5a, 0x07, 0x73, 0x72, 0x63, 0x2f, 0x61, 0x70, 0x69, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -415,14 +325,12 @@ func file_src_api_api_proto_rawDescGZIP() []byte {
 	return file_src_api_api_proto_rawDescData
 }
 
-var file_src_api_api_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_src_api_api_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_src_api_api_proto_goTypes = []any{
-	(*DecryptDataRequest)(nil),     // 0: DecryptDataRequest
-	(*DecryptDataResponse)(nil),    // 1: DecryptDataResponse
-	(*PartialDecryptRequest)(nil),  // 2: PartialDecryptRequest
-	(*PartialDecryptResponse)(nil), // 3: PartialDecryptResponse
-	(*VerifyPartRequest)(nil),      // 4: VerifyPartRequest
-	(*VerifyPartResponse)(nil),     // 5: VerifyPartResponse
+	(*DecryptDataRequest)(nil),    // 0: DecryptDataRequest
+	(*PartialDecryptRequest)(nil), // 1: PartialDecryptRequest
+	(*VerifyPartRequest)(nil),     // 2: VerifyPartRequest
+	(*Response)(nil),              // 3: Response
 }
 var file_src_api_api_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -451,18 +359,6 @@ func file_src_api_api_proto_init() {
 			}
 		}
 		file_src_api_api_proto_msgTypes[1].Exporter = func(v any, i int) any {
-			switch v := v.(*DecryptDataResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_src_api_api_proto_msgTypes[2].Exporter = func(v any, i int) any {
 			switch v := v.(*PartialDecryptRequest); i {
 			case 0:
 				return &v.state
@@ -474,19 +370,7 @@ func file_src_api_api_proto_init() {
 				return nil
 			}
 		}
-		file_src_api_api_proto_msgTypes[3].Exporter = func(v any, i int) any {
-			switch v := v.(*PartialDecryptResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_src_api_api_proto_msgTypes[4].Exporter = func(v any, i int) any {
+		file_src_api_api_proto_msgTypes[2].Exporter = func(v any, i int) any {
 			switch v := v.(*VerifyPartRequest); i {
 			case 0:
 				return &v.state
@@ -498,8 +382,8 @@ func file_src_api_api_proto_init() {
 				return nil
 			}
 		}
-		file_src_api_api_proto_msgTypes[5].Exporter = func(v any, i int) any {
-			switch v := v.(*VerifyPartResponse); i {
+		file_src_api_api_proto_msgTypes[3].Exporter = func(v any, i int) any {
+			switch v := v.(*Response); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -517,7 +401,7 @@ func file_src_api_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_src_api_api_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

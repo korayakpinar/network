@@ -6,24 +6,17 @@ option go_package="src/api";
 message DecryptDataRequest {
     string enc = 1;
     repeated string pks = 2;
-    string sa1 = 3;
-    string sa2 = 4;
-    string iv = 5;
-    uint64 t = 6;
-    uint64 n = 7;
-}
-
-message DecryptDataResponse {
-    string result = 1;
+    repeated string parts = 3;
+    repeated string sa1 = 4;
+    repeated string sa2 = 5;
+    string iv = 6;
+    uint64 t = 7;
+    uint64 n = 8;
 }
 
 // PartialDecrypt function messages
 message PartialDecryptRequest {
     string gammaG2 = 1;
-}
-
-message PartialDecryptResponse {
-    string result = 1;
 }
 
 // VerifyPart function messages
@@ -33,6 +26,7 @@ message VerifyPartRequest {
     string partDec = 3;
 }
 
-message VerifyPartResponse {
+// Response message
+message Response {
     string result = 1;
 }

@@ -1,6 +1,7 @@
 package mempool
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/korayakpinar/p2pclient/src/types"
@@ -24,6 +25,21 @@ func NewMempool() *Mempool {
 
 func (m *Mempool) AddTransaction(tx *types.EncryptedTransaction) {
 	*m.txs = append(*m.txs, tx)
+}
+
+func (m *Mempool) GetTransactions() []*types.EncryptedTransaction {
+	return *m.txs
+}
+
+func (m *Mempool) RemoveTransactions(txHashes []types.TxHash) {
+	newTxs := []*types.EncryptedTransaction{}
+	for _, tx := range *m.txs {
+		if !slices.Contains(txHashes, tx.Header.Hash) {
+			newTxs = append(newTxs, tx)
+		}
+	}
+	*m.txs = newTxs
+
 }
 
 func (m *Mempool) AddPartialDecryption(hash types.TxHash, partDec types.PartialDecryption) {

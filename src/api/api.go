@@ -7,16 +7,17 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func DecryptData(enc string, pks []string, sa1 string, sa2 string, iv string, t uint64, n uint64) (string, error) {
+func DecryptData(enc string, pks []string, parts []string, sa1 []string, sa2 []string, iv string, t uint64, n uint64) (string, error) {
 	client := http.Client{}
 	req := &DecryptDataRequest{
-		Enc: enc,
-		Pks: pks,
-		Sa1: sa1,
-		Sa2: sa2,
-		Iv:  iv,
-		T:   t,
-		N:   n,
+		Enc:   enc,
+		Pks:   pks,
+		Parts: parts,
+		Sa1:   sa1,
+		Sa2:   sa2,
+		Iv:    iv,
+		T:     t,
+		N:     n,
 	}
 	data, err := proto.Marshal(req)
 	if err != nil {
@@ -41,7 +42,7 @@ func DecryptData(enc string, pks []string, sa1 string, sa2 string, iv string, t 
 		return "", err
 	}
 
-	var decryptDataResp DecryptDataResponse
+	var decryptDataResp Response
 	err = proto.Unmarshal(bodyBytes, &decryptDataResp)
 	if err != nil {
 		return "", err
@@ -78,7 +79,7 @@ func PartialDecrypt(gammaG2 string) (string, error) {
 		return "", err
 	}
 
-	var partDecResp PartialDecryptResponse
+	var partDecResp Response
 	err = proto.Unmarshal(bodyBytes, &partDecResp)
 	if err != nil {
 		return "", err
@@ -117,7 +118,7 @@ func VerifyPart(pk string, gammaG2 string, partDec string) (string, error) {
 		return "", err
 	}
 
-	var verifyPartResp VerifyPartResponse
+	var verifyPartResp Response
 	err = proto.Unmarshal(bodyBytes, &verifyPartResp)
 	if err != nil {
 		return "", err
