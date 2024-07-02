@@ -15,6 +15,7 @@ message TransactionBody {
     repeated uint32 pkIDs = 1;  // List of public key IDs
     repeated string sa1 = 2;    // String array of length 2
     repeated string sa2 = 3;    // String array of length 6
-    bytes iv = 4;               // Initialization vector for AES256, 16 bytes long
-    uint32 t = 5;               // Unsigned integer field
+    string iv = 4;               // Initialization vector for AES256, 16 bytes long
+    string encText = 5;         // Encrypted text
+    uint32 t = 6;               // Unsigned integer field
 }

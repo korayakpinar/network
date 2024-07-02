@@ -1,0 +1,38 @@
+syntax = "proto3";
+option go_package="src/api";
+
+
+// DecryptData function messages
+message DecryptDataRequest {
+    string enc = 1;
+    repeated string pks = 2;
+    string sa1 = 3;
+    string sa2 = 4;
+    string iv = 5;
+    int32 t = 6;
+    int32 n = 7;
+}
+
+message DecryptDataResponse {
+    string result = 1;
+}
+
+// PartialDecrypt function messages
+message PartialDecryptRequest {
+    string gammaG2 = 1;
+}
+
+message PartialDecryptResponse {
+    string result = 1;
+}
+
+// VerifyPart function messages
+message VerifyPartRequest {
+    string pk = 1;
+    string gammaG2 = 2;
+    string partDec = 3;
+}
+
+message VerifyPartResponse {
+    string result = 1;
+}

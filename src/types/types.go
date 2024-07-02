@@ -20,7 +20,8 @@ type TransactionBody struct {
 	PkIDs     []uint32
 	Sa1       []string
 	Sa2       []string
-	Iv        []byte
+	Iv        string
+	EncText   string
 	Threshold uint32
 }
 
