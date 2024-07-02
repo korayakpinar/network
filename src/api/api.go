@@ -1,27 +1,39 @@
 package api
 
 import (
+	"bytes"
 	"net/http"
-	"strconv"
-	"strings"
+
+	"google.golang.org/protobuf/proto"
 )
 
-func DecryptData(enc string, pks []string, sa1 string, sa2 string, iv string, t int, n int) (string, error) {
+func DecryptData(enc string, pks []string, sa1 string, sa2 string, iv string, t int32, n int32) (string, error) {
 	client := http.Client{}
-
-	body := ""
-	for _, pk := range pks {
-		body += pk + " "
+	req := &DecryptDataRequest{
+		Enc: enc,
+		Pks: pks,
+		Sa1: sa1,
+		Sa2: sa2,
+		Iv:  iv,
+		T:   t,
+		N:   n,
 	}
-	body += sa1 + " " + sa2 + " " + iv + " " + strconv.Itoa(t) + " " + strconv.Itoa(n)
-	postReader := strings.NewReader(body)
-	resp, err := client.Post("http://127.0.0.1:8080/decrypt", "application/x-www-form-urlencoded", postReader)
+	data, err := proto.Marshal(req)
 	if err != nil {
 		return "", err
 	}
-	if resp.StatusCode != 200 {
+
+	postReader := bytes.NewReader(data)
+
+	resp, err := client.Post("http://127.0.0.1:8080/decrypt", "application/x-www-form-urlencoded", postReader)
+
+	if err != nil {
 		return "", err
 	}
+	if resp.StatusCode != http.StatusOK {
+		return "", err
+	}
+	defer resp.Body.Close()
 
 	var bodyBytes []byte
 	_, err = resp.Body.Read(bodyBytes)
@@ -29,13 +41,27 @@ func DecryptData(enc string, pks []string, sa1 string, sa2 string, iv string, t 
 		return "", err
 	}
 
-	return string(bodyBytes), nil
+	var decryptDataResp DecryptDataResponse
+	err = proto.Unmarshal(bodyBytes, &decryptDataResp)
+	if err != nil {
+		return "", err
+	}
+
+	return decryptDataResp.Result, nil
 }
 
 func PartialDecrypt(gammaG2 string) (string, error) {
 	client := http.Client{}
 
-	postReader := strings.NewReader(gammaG2)
+	req := &PartialDecryptRequest{
+		GammaG2: gammaG2,
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		return "", err
+	}
+
+	postReader := bytes.NewReader(data)
 
 	resp, err := client.Post("http://127.0.0.1:8080/partdec", "application/x-www-form-urlencoded", postReader)
 	if err != nil {
@@ -44,21 +70,37 @@ func PartialDecrypt(gammaG2 string) (string, error) {
 	if resp.StatusCode != 200 {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	var bodyBytes []byte
 	_, err = resp.Body.Read(bodyBytes)
 	if err != nil {
 		return "", err
 	}
-	return string(bodyBytes), nil
+
+	var partDecResp PartialDecryptResponse
+	err = proto.Unmarshal(bodyBytes, &partDecResp)
+	if err != nil {
+		return "", err
+	}
+
+	return partDecResp.Result, nil
 }
 
 func VerifyPart(pk string, gammaG2 string, partDec string) (string, error) {
 	client := http.Client{}
 
-	body := pk + " " + gammaG2 + " " + partDec
+	req := &VerifyPartRequest{
+		Pk:      pk,
+		GammaG2: gammaG2,
+		PartDec: partDec,
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		return "", err
+	}
 
-	postReader := strings.NewReader(body)
+	postReader := bytes.NewReader(data)
 
 	resp, err := client.Post("http://127.0.0.1:8080/verifypart", "application/x-www-form-urlencoded", postReader)
 	if err != nil {
@@ -67,6 +109,7 @@ func VerifyPart(pk string, gammaG2 string, partDec string) (string, error) {
 	if resp.StatusCode != 200 {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	var bodyBytes []byte
 	_, err = resp.Body.Read(bodyBytes)
@@ -74,5 +117,11 @@ func VerifyPart(pk string, gammaG2 string, partDec string) (string, error) {
 		return "", err
 	}
 
-	return string(bodyBytes), nil
+	var verifyPartResp VerifyPartResponse
+	err = proto.Unmarshal(bodyBytes, &verifyPartResp)
+	if err != nil {
+		return "", err
+	}
+
+	return verifyPartResp.Result, nil
 }

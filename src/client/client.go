@@ -100,7 +100,7 @@ func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan ch
 		} else {
 			return errors.New("not a operator")
 		}
-		return nil
+
 	}
 
 	// Create a new PubSub service using the GossipSub router
