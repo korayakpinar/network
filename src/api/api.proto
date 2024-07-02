@@ -9,8 +9,8 @@ message DecryptDataRequest {
     string sa1 = 3;
     string sa2 = 4;
     string iv = 5;
-    int32 t = 6;
-    int32 n = 7;
+    uint64 t = 6;
+    uint64 n = 7;
 }
 
 message DecryptDataResponse {

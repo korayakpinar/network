@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func DecryptData(enc string, pks []string, sa1 string, sa2 string, iv string, t int32, n int32) (string, error) {
+func DecryptData(enc string, pks []string, sa1 string, sa2 string, iv string, t uint64, n uint64) (string, error) {
 	client := http.Client{}
 	req := &DecryptDataRequest{
 		Enc: enc,
