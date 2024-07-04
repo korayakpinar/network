@@ -27,6 +27,7 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 	//TODO: Get the array that contains the order of the leaders/validators from the smart contract
 	//TODO: Get the node's public key index from smart contract
 	var ourIndex uint32 = 0
+	var CommitteSize uint32 = 512
 
 	for {
 		msg, err := h.sub.Next(ctx)
@@ -48,12 +49,12 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 			encTxMsg := newMsg.Message.(*message.Message_EncryptedTransaction).EncryptedTransaction
 			// Maybe functionize these conversions?
 			encTx := &types.EncryptedTransaction{
-				Header: &types.TransactionHeader{
-					Hash:    types.TxHash(encTxMsg.Header.Hash),
+				Header: &types.EncryptedTxHeader{
+					Hash:    string(encTxMsg.Header.Hash),
 					GammaG2: encTxMsg.Header.GammaG2,
 					PkIDs:   encTxMsg.Header.PkIDs,
 				},
-				Body: &types.TransactionBody{
+				Body: &types.EncryptedTxBody{
 					Sa1:       encTxMsg.Body.Sa1,
 					Sa2:       encTxMsg.Body.Sa2,
 					Iv:        encTxMsg.Body.Iv,
@@ -61,28 +62,68 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 					Threshold: encTxMsg.Body.T,
 				},
 			}
-			h.mempool.AddTransaction(encTx)
+			h.mempool.AddEncryptedTx(encTx)
 		case message.MessageType_PARTIAL_DECRYPTION:
 			partDecMsg := newMsg.Message.(*message.Message_PartialDecryption).PartialDecryption
-			partDec := types.PartialDecryption(partDecMsg.PartDec)
-			txHash := types.TxHash(partDecMsg.TxHash)
-			h.mempool.AddPartialDecryption(txHash, partDec)
+			partDec := partDecMsg.PartDec
+			txHash := partDecMsg.TxHash
+			h.mempool.AddPartialDecryption(txHash, &partDec)
+			if h.mempool.GetThreshold(txHash) == uint32(h.mempool.GetPartialDecryptionCount(txHash)) {
+				encTx := h.mempool.GetTransaction(txHash)
+				encryptedContent := encTx.Body.EncText
+
+				content, err := api.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				h.mempool.AddDecryptedTx(&types.DecryptedTransaction{
+					Header: &types.DecryptedTxHeader{
+						Hash:  txHash,
+						PkIDs: encTx.Header.PkIDs,
+					},
+					Body: &types.DecryptedTxBody{
+						Content: content,
+					},
+				})
+
+				/* newMessage := &message.Message{
+					Message: &message.Me{
+						DecryptedTransaction: &message.DecryptedTransaction{
+							TxHash:  string(txHash),
+							DecText: decTx,
+						},
+					},
+				}
+
+				msgBytes, err := proto.Marshal(newMessage)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				err = h.topic.Publish(ctx, msgBytes)
+				if err != nil {
+					errChan <- err
+					return
+				} */
+
+			}
 		case message.MessageType_ENCRYPTED_BATCH:
 			encBatchMsg := newMsg.Message.(*message.Message_EncryptedBatch).EncryptedBatch
 			encBatch := &types.EncryptedBatch{
 				Header: &types.BatchHeader{
 					LeaderID:  encBatchMsg.Header.LeaderID,
-					BlockNum:  types.BlockNum(encBatchMsg.Header.BlockNum),
+					BlockNum:  uint32(encBatchMsg.Header.BlockNum),
 					Hash:      encBatchMsg.Header.Hash,
 					Signature: encBatchMsg.Header.Signature,
 				},
 				Body: &types.BatchBody{
-					EncTxs: []*types.TransactionHeader{},
+					EncTxs: []*types.EncryptedTxHeader{},
 				},
 			}
-			var txHashes []types.TxHash
+			var txHashes []string
 			for _, encTx := range encBatchMsg.Body.Transactions {
-				txHashes = append(txHashes, types.TxHash(encTx.Hash))
+				txHashes = append(txHashes, string(encTx.Hash))
 				if slices.Contains(encTx.PkIDs, ourIndex) {
 					partDec, err := api.PartialDecrypt(encTx.GammaG2)
 					if err != nil {
@@ -110,8 +151,8 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 						return
 					}
 				}
-				newTx := &types.TransactionHeader{
-					Hash:    types.TxHash(encTx.Hash),
+				newTx := &types.EncryptedTxHeader{
+					Hash:    string(encTx.Hash),
 					GammaG2: encTx.GammaG2,
 				}
 				encBatch.Body.EncTxs = append(encBatch.Body.EncTxs, newTx)
@@ -122,16 +163,16 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 			orderSigMsg := newMsg.Message.(*message.Message_OrderSignature).OrderSignature
 			orderSig := &types.OrderSig{
 				Signature: orderSigMsg.Signature,
-				TxHeaders: []*types.TransactionHeader{},
+				TxHeaders: []*types.EncryptedTxHeader{},
 			}
 			for _, tx := range orderSigMsg.Order {
-				newTx := &types.TransactionHeader{
-					Hash:    types.TxHash(tx.Hash),
+				newTx := &types.EncryptedTxHeader{
+					Hash:    string(tx.Hash),
 					GammaG2: tx.GammaG2,
 				}
 				orderSig.TxHeaders = append(orderSig.TxHeaders, newTx)
 			}
-			h.mempool.AddOrderSig(types.BlockNum(orderSigMsg.BlockNum), *orderSig)
+			h.mempool.AddOrderSig(uint32(orderSigMsg.BlockNum), *orderSig)
 
 		}
 

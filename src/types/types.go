@@ -1,28 +1,38 @@
 package types
 
-type PartialDecryption string
-type TxHash string
-type BlockNum uint32
-
 // EncryptedTransaction represents the encrypted transaction
 type EncryptedTransaction struct {
-	Header *TransactionHeader
-	Body   *TransactionBody
+	Header *EncryptedTxHeader
+	Body   *EncryptedTxBody
 }
 
-type TransactionHeader struct {
-	Hash    TxHash
-	GammaG2 string
+type EncryptedTxHeader struct {
+	Hash    string
+	GammaG2 []byte
 	PkIDs   []uint32
 }
 
 // TransactionBody represents the body of the transaction
-type TransactionBody struct {
-	Sa1       []string
-	Sa2       []string
-	Iv        string
-	EncText   string
+type EncryptedTxBody struct {
+	Sa1       []byte
+	Sa2       []byte
+	Iv        []byte
+	EncText   []byte
 	Threshold uint32
+}
+
+type DecryptedTransaction struct {
+	Header *DecryptedTxHeader
+	Body   *DecryptedTxBody
+}
+
+type DecryptedTxHeader struct {
+	Hash  string
+	PkIDs []uint32
+}
+
+type DecryptedTxBody struct {
+	Content string
 }
 
 type EncryptedBatch struct {
@@ -32,16 +42,16 @@ type EncryptedBatch struct {
 
 type BatchHeader struct {
 	LeaderID  uint32
-	BlockNum  BlockNum
+	BlockNum  uint32
 	Hash      string
 	Signature string
 }
 
 type BatchBody struct {
-	EncTxs []*TransactionHeader
+	EncTxs []*EncryptedTxHeader
 }
 
 type OrderSig struct {
-	TxHeaders []*TransactionHeader
+	TxHeaders []*EncryptedTxHeader
 	Signature string
 }

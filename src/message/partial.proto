@@ -3,5 +3,5 @@ option go_package="src/message";
 
 message PartialDecryption {
     string txHash = 1;
-    string partDec = 2;
+    bytes partDec = 2;
 }
