@@ -1,6 +1,12 @@
 syntax = "proto3";
 option go_package="src/crypto";
 
+message EncryptRequest {
+    bytes msg = 1;
+    repeated bytes pks = 2;
+    uint64 t = 3;
+    uint64 n = 4;
+}
 
 // DecryptData function messages
 message DecryptDataRequest {
@@ -10,8 +16,8 @@ message DecryptDataRequest {
     bytes sa1 = 4;
     bytes sa2 = 5;
     bytes iv = 6;
-    uint32 t = 7;
-    uint32 n = 8;
+    uint64 t = 7;
+    uint64 n = 8;
 }
 
 // PartialDecrypt function messages
@@ -26,10 +32,12 @@ message VerifyPartRequest {
     bytes partDec = 3;
 }
 
-message EncryptRequest {
-    repeated bytes pks = 1;
-    uint64 t = 2;
-    uint64 n = 3;
+message EncryptResponse {
+    bytes enc = 1;
+    bytes sa1 = 2;
+    bytes sa2 = 3;
+    bytes iv = 4;
+    bytes gamma_g2 = 5;
 }
 
 // Response message

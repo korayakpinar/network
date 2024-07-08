@@ -3,7 +3,6 @@ package client
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -129,11 +128,12 @@ func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan ch
 
 	inspector := func(pid peer.ID, rpc *pubsub.RPC) error {
 
-		if utils.IsOperator(pid) {
+		/* if utils.IsOperator(pid) {
 			return nil
 		} else {
 			return errors.New("not a operator")
-		}
+		} */
+		return nil
 
 	}
 

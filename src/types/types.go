@@ -9,7 +9,7 @@ type EncryptedTransaction struct {
 type EncryptedTxHeader struct {
 	Hash    string
 	GammaG2 []byte
-	PkIDs   []uint32
+	PkIDs   []uint64
 }
 
 // TransactionBody represents the body of the transaction
@@ -18,7 +18,7 @@ type EncryptedTxBody struct {
 	Sa2       []byte
 	Iv        []byte
 	EncText   []byte
-	Threshold uint32
+	Threshold uint64
 }
 
 type DecryptedTransaction struct {
@@ -28,7 +28,7 @@ type DecryptedTransaction struct {
 
 type DecryptedTxHeader struct {
 	Hash  string
-	PkIDs []uint32
+	PkIDs []uint64
 }
 
 type DecryptedTxBody struct {
@@ -41,8 +41,8 @@ type EncryptedBatch struct {
 }
 
 type BatchHeader struct {
-	LeaderID  uint32
-	BlockNum  uint32
+	LeaderID  uint64
+	BlockNum  uint64
 	Hash      string
 	Signature string
 }

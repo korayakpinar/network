@@ -7,7 +7,49 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint32, n uint32) (string, error) {
+func EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, error) {
+	client := http.Client{}
+
+	req := &EncryptRequest{
+		Msg: msg,
+		Pks: pks,
+		T:   t,
+		N:   n,
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	postReader := bytes.NewReader(data)
+
+	resp, err := client.Post("http://127.0.0.1:8080/decrypt", "application/x-www-form-urlencoded", postReader)
+
+	if err != nil {
+		return []byte{}, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return []byte{}, err
+	}
+	defer resp.Body.Close()
+
+	var bodyBytes []byte
+	_, err = resp.Body.Read(bodyBytes)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	var encryptDataResp Response
+	err = proto.Unmarshal(bodyBytes, &encryptDataResp)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return encryptDataResp.Result, nil
+
+}
+func DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) (string, error) {
 	client := http.Client{}
 
 	req := &DecryptDataRequest{

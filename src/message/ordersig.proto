@@ -4,7 +4,7 @@ option go_package="src/message";
 import "src/message/transaction.proto";
 
 message OrderSignature {
-    uint32 blockNum = 1;
+    uint64 blockNum = 1;
     repeated TransactionHeader order = 2;
     string signature = 3;
 }

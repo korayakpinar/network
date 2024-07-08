@@ -11,12 +11,12 @@ type Mempool struct {
 	encryptedTxs     []*types.EncryptedTransaction
 	decryptedTxs     []*types.DecryptedTransaction
 	partDecRegistry  Registry[string, [][]byte]         // TxHash -> []PartialDecryption
-	orderSigRegistry Registry[uint32, []types.OrderSig] // BlockNum -> []OrderSig
+	orderSigRegistry Registry[uint64, []types.OrderSig] // BlockNum -> []OrderSig
 }
 
 func NewMempool() *Mempool {
 	partDecRegistry := NewRegistry[string, [][]byte]()
-	orderSigRegistry := NewRegistry[uint32, []types.OrderSig]()
+	orderSigRegistry := NewRegistry[uint64, []types.OrderSig]()
 	return &Mempool{
 		encryptedTxs:     []*types.EncryptedTransaction{},
 		decryptedTxs:     []*types.DecryptedTransaction{},
@@ -26,8 +26,9 @@ func NewMempool() *Mempool {
 }
 
 func (m *Mempool) AddEncryptedTx(tx *types.EncryptedTransaction) {
-	//TODO: Check if the transaction is already in the mempool
-	m.encryptedTxs = append(m.encryptedTxs, tx)
+	if !slices.Contains(m.encryptedTxs, tx) {
+		m.encryptedTxs = append(m.encryptedTxs, tx)
+	}
 }
 
 func (m *Mempool) GetTransactions() []*types.EncryptedTransaction {
@@ -54,11 +55,12 @@ func (m *Mempool) RemoveTransactions(txHashes []string) {
 }
 
 func (m *Mempool) AddDecryptedTx(tx *types.DecryptedTransaction) {
-	//TODO: Check if the transaction is already in the mempool
-	m.decryptedTxs = append(m.decryptedTxs, tx)
+	if !slices.Contains(m.decryptedTxs, tx) {
+		m.decryptedTxs = append(m.decryptedTxs, tx)
+	}
 }
 
-func (m *Mempool) GetThreshold(hash string) uint32 {
+func (m *Mempool) GetThreshold(hash string) uint64 {
 	for _, tx := range m.encryptedTxs {
 		if tx.Header.Hash == hash {
 			return tx.Body.Threshold
@@ -68,9 +70,10 @@ func (m *Mempool) GetThreshold(hash string) uint32 {
 }
 
 func (m *Mempool) AddPartialDecryption(hash string, partDec *[]byte) {
-	//TODO: Check if the partial decryption is already in the mempool
 	arr := m.partDecRegistry.Load(hash)
-	*arr = append(*arr, *partDec)
+	if arr == nil {
+		m.partDecRegistry.Store(hash, &[][]byte{*partDec})
+	}
 }
 
 func (m *Mempool) GetPartialDecryptions(hash string) *[][]byte {
@@ -78,15 +81,16 @@ func (m *Mempool) GetPartialDecryptions(hash string) *[][]byte {
 	return partDecs
 }
 
-func (m *Mempool) GetPartialDecryptionCount(hash string) uint32 {
+func (m *Mempool) GetPartialDecryptionCount(hash string) uint64 {
 	partDecs := (*m).partDecRegistry.Load(hash)
-	return uint32(len(*partDecs))
+	return uint64(len(*partDecs))
 }
 
-func (m *Mempool) AddOrderSig(blockNum uint32, orderSig types.OrderSig) {
-	//TODO: Check if the order signature is already in the mempool
+func (m *Mempool) AddOrderSig(blockNum uint64, orderSig types.OrderSig) {
 	orderSigs := m.orderSigRegistry.Load(blockNum)
-	*orderSigs = append(*orderSigs, orderSig)
+	if orderSigs == nil {
+		m.orderSigRegistry.Store(blockNum, &[]types.OrderSig{orderSig})
+	}
 }
 
 type Registry[K comparable, V any] struct {

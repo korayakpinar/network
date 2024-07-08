@@ -19,7 +19,7 @@ func TestMempool(t *testing.T) {
 		Header: &types.EncryptedTxHeader{
 			Hash:    "hash",
 			GammaG2: []byte{1, 2, 3},
-			PkIDs:   []uint32{1, 2, 3},
+			PkIDs:   []uint64{1, 2, 3},
 		},
 		Body: &types.EncryptedTxBody{
 			Sa1:       []byte{1, 2, 3},
@@ -47,6 +47,14 @@ func TestMempool(t *testing.T) {
 	afterGammaG2 := memp.GetTransaction("hash").Header.GammaG2
 	if beforeGammaG2[0] == afterGammaG2[0] {
 		t.Errorf("GammaG2 not updated")
+	}
+
+	memp.AddPartialDecryption("hash", &[]byte{1, 2, 3})
+	preLength := len(*memp.GetPartialDecryptions("hash"))
+	memp.AddPartialDecryption("hash", &[]byte{1, 2, 3})
+	postLength := len(*memp.GetPartialDecryptions("hash"))
+	if preLength != postLength {
+		t.Errorf("Partial decryption added twice")
 	}
 
 }

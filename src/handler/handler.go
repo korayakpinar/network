@@ -26,8 +26,8 @@ func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic) *Handler {
 func (h *Handler) Start(ctx context.Context, errChan chan error) {
 	//TODO: Get the array that contains the order of the leaders/validators from the smart contract
 	//TODO: Get the node's public key index from smart contract
-	var ourIndex uint32 = 0
-	var CommitteSize uint32 = 512
+	var ourIndex uint64 = 0
+	var CommitteSize uint64 = 512
 
 	for {
 		msg, err := h.sub.Next(ctx)
@@ -68,7 +68,7 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 			partDec := partDecMsg.PartDec
 			txHash := partDecMsg.TxHash
 			h.mempool.AddPartialDecryption(txHash, &partDec)
-			if h.mempool.GetThreshold(txHash) == uint32(h.mempool.GetPartialDecryptionCount(txHash)) {
+			if h.mempool.GetThreshold(txHash) == h.mempool.GetPartialDecryptionCount(txHash) {
 				encTx := h.mempool.GetTransaction(txHash)
 				encryptedContent := encTx.Body.EncText
 
@@ -87,33 +87,13 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 					},
 				})
 
-				/* newMessage := &message.Message{
-					Message: &message.Me{
-						DecryptedTransaction: &message.DecryptedTransaction{
-							TxHash:  string(txHash),
-							DecText: decTx,
-						},
-					},
-				}
-
-				msgBytes, err := proto.Marshal(newMessage)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				err = h.topic.Publish(ctx, msgBytes)
-				if err != nil {
-					errChan <- err
-					return
-				} */
-
 			}
 		case message.MessageType_ENCRYPTED_BATCH:
 			encBatchMsg := newMsg.Message.(*message.Message_EncryptedBatch).EncryptedBatch
 			encBatch := &types.EncryptedBatch{
 				Header: &types.BatchHeader{
 					LeaderID:  encBatchMsg.Header.LeaderID,
-					BlockNum:  uint32(encBatchMsg.Header.BlockNum),
+					BlockNum:  encBatchMsg.Header.BlockNum,
 					Hash:      encBatchMsg.Header.Hash,
 					Signature: encBatchMsg.Header.Signature,
 				},
@@ -172,46 +152,9 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 				}
 				orderSig.TxHeaders = append(orderSig.TxHeaders, newTx)
 			}
-			h.mempool.AddOrderSig(uint32(orderSigMsg.BlockNum), *orderSig)
+			h.mempool.AddOrderSig(orderSigMsg.BlockNum, *orderSig)
 
 		}
-
-		/*
-			// Just an Example
-			fmt.Println(msg.ReceivedFrom, ": ", string(msg.Message.Data))
-
-
-			tx := &message.EncryptedTransaction{
-				Header: &message.TransactionHeader{
-					Hash:    "hash",
-					GammaG2: "gammaG2",
-				},
-				Body: &message.TransactionBody{
-					PkIDs: []uint32{1, 2, 3},
-					Sa1:   []string{"sa1"},
-					Sa2:   []string{"sa2"},
-					Iv:    []byte{1, 2, 3},
-					T:     5,
-				},
-			}
-			newMessage := &message.Message{
-				Message: &message.Message_EncryptedTransaction{
-					EncryptedTransaction: tx,
-				},
-				MessageType: message.MessageType_ENCRYPTED_TRANSACTION,
-			}
-
-			msgBytes, err := proto.Marshal(newMessage)
-
-			if err != nil {
-				errChan <- err
-				return
-			}
-			err = h.topic.Publish(ctx, msgBytes)
-			if err != nil {
-				errChan <- err
-				return
-			} */
 	}
 
 }
