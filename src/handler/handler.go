@@ -4,10 +4,10 @@ import (
 	"context"
 	"slices"
 
-	"github.com/korayakpinar/p2pclient/src/crypto"
-	"github.com/korayakpinar/p2pclient/src/mempool"
-	"github.com/korayakpinar/p2pclient/src/message"
-	"github.com/korayakpinar/p2pclient/src/types"
+	"github.com/korayakpinar/network/src/crypto"
+	"github.com/korayakpinar/network/src/mempool"
+	"github.com/korayakpinar/network/src/message"
+	"github.com/korayakpinar/network/src/types"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"google.golang.org/protobuf/proto"
 )

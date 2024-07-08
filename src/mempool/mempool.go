@@ -4,7 +4,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/korayakpinar/p2pclient/src/types"
+	"github.com/korayakpinar/network/src/types"
 )
 
 type Mempool struct {

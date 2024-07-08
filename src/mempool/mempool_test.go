@@ -3,8 +3,8 @@ package mempool_test
 import (
 	"testing"
 
-	"github.com/korayakpinar/p2pclient/src/mempool"
-	"github.com/korayakpinar/p2pclient/src/types"
+	"github.com/korayakpinar/network/src/mempool"
+	"github.com/korayakpinar/network/src/types"
 )
 
 func TestMempool(t *testing.T) {

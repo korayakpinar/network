@@ -7,19 +7,23 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/korayakpinar/network/src/handler"
 )
 
 // Proxy represents the proxy server.
 type Proxy struct {
-	RpcURL string
-	Port   string
+	Handler *handler.Handler
+	RpcURL  string
+	Port    string
 }
 
 // NewProxy creates a new Proxy instance.
-func NewProxy(rpcURL, port string) *Proxy {
+func NewProxy(handler *handler.Handler, rpcURL, port string) *Proxy {
 	return &Proxy{
-		RpcURL: rpcURL,
-		Port:   port,
+		Handler: handler,
+		RpcURL:  rpcURL,
+		Port:    port,
 	}
 }
 

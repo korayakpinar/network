@@ -10,7 +10,7 @@ import (
 type Config struct {
 	TopicName string `toml:"topicName"`
 	PrivKey   string `toml:"privKey"`
-	Rpc       string `toml:"rpc"`
+	RpcURL    string `toml:"rpc"`
 	Port      string `toml:"port"`
 }
 

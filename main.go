@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/korayakpinar/p2pclient/src/client"
-	"github.com/korayakpinar/p2pclient/src/utils"
+	"github.com/korayakpinar/network/src/client"
+	"github.com/korayakpinar/network/src/utils"
 	"github.com/libp2p/go-libp2p"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	// Initialize the client
-	client := client.NewClient(h, dht)
+	client := client.NewClient(h, dht, cfg)
 
 	fmt.Println("Host created, ID:", h.ID())
 	ethAddr, err := utils.IdToEthAddress(h.ID())

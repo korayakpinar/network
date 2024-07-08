@@ -1,4 +1,4 @@
-module github.com/korayakpinar/p2pclient
+module github.com/korayakpinar/network
 
 go 1.21.0
 

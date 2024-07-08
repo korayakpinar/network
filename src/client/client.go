@@ -9,8 +9,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/korayakpinar/p2pclient/src/handler"
-	"github.com/korayakpinar/p2pclient/src/utils"
+	"github.com/korayakpinar/network/src/handler"
+	"github.com/korayakpinar/network/src/proxy"
+	"github.com/korayakpinar/network/src/utils"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -26,7 +27,9 @@ type Client struct {
 	PubSub    *pubsub.PubSub
 	DHT       *kaddht.IpfsDHT
 	Handler   *handler.Handler
+	Proxy     *proxy.Proxy
 	operators []peer.ID
+	cfg       utils.Config
 }
 
 type discoveryNotifee struct {
@@ -34,8 +37,8 @@ type discoveryNotifee struct {
 	ctx context.Context
 }
 
-func NewClient(h host.Host, dht *kaddht.IpfsDHT) *Client {
-	return &Client{h, nil, dht, nil, make([]peer.ID, 0)}
+func NewClient(h host.Host, dht *kaddht.IpfsDHT, cfg utils.Config) *Client {
+	return &Client{h, nil, dht, nil, nil, make([]peer.ID, 0), cfg}
 }
 
 func (cli *Client) Start(ctx context.Context, topicName string) {
@@ -61,6 +64,11 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	handler := handler.NewHandler(sub, topicHandle)
 	cli.Handler = handler
 	go handler.Start(ctx, errChan)
+
+	// Start the proxy server
+	proxy := proxy.NewProxy(handler, "http://localhost:8545", "8080")
+	cli.Proxy = proxy
+	go proxy.Start()
 
 	select {
 	case err := <-errChan:
@@ -222,4 +230,8 @@ func (cli *Client) IsPublisher(p peer.ID) bool {
 		}
 	}
 	return false
+}
+
+func (cli *Client) GetHandler() *handler.Handler {
+	return cli.Handler
 }
