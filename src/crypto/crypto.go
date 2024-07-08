@@ -23,7 +23,7 @@ func EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, e
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/encrypt", "application/x-www-form-urlencoded", postReader)
+	resp, err := client.Post("http://127.0.0.1:8080/encrypt", "application/protobuf", postReader)
 
 	if err != nil {
 		return []byte{}, err
@@ -68,7 +68,7 @@ func DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/decrypt", "application/x-www-form-urlencoded", postReader)
+	resp, err := client.Post("http://127.0.0.1:8080/decrypt", "application/protobuf", postReader)
 
 	if err != nil {
 		return "", err
@@ -106,7 +106,7 @@ func PartialDecrypt(gammaG2 []byte) ([]byte, error) {
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/partdec", "application/x-www-form-urlencoded", postReader)
+	resp, err := client.Post("http://127.0.0.1:8080/partdec", "application/protobuf", postReader)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -145,7 +145,7 @@ func VerifyPart(pk []byte, gammaG2 []byte, partDec []byte) (string, error) {
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/verifypart", "application/x-www-form-urlencoded", postReader)
+	resp, err := client.Post("http://127.0.0.1:8080/verifypart", "application/protobuf", postReader)
 	if err != nil {
 		return "", err
 	}
