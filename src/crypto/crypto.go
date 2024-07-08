@@ -23,7 +23,7 @@ func EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, e
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/decrypt", "application/x-www-form-urlencoded", postReader)
+	resp, err := client.Post("http://127.0.0.1:8080/encrypt", "application/x-www-form-urlencoded", postReader)
 
 	if err != nil {
 		return []byte{}, err
@@ -47,7 +47,6 @@ func EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, e
 	}
 
 	return encryptDataResp.Result, nil
-
 }
 func DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) (string, error) {
 	client := http.Client{}

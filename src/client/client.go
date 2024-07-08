@@ -65,7 +65,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	go handler.Start(ctx, errChan)
 
 	// Start the proxy server
-	proxy := proxy.NewProxy(handler, "http://localhost:8545", "8080")
+	proxy := proxy.NewProxy(handler, "http://localhost:8545", cli.cfg.Port)
 	cli.Proxy = proxy
 	go proxy.Start()
 
