@@ -10,6 +10,8 @@ import (
 type Config struct {
 	TopicName string `toml:"topicName"`
 	PrivKey   string `toml:"privKey"`
+	Rpc       string `toml:"rpc"`
+	Port      string `toml:"port"`
 }
 
 func EthToLibp2pPrivKey(key string) (crypto.PrivKey, error) {

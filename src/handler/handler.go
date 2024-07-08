@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/korayakpinar/p2pclient/src/api"
+	"github.com/korayakpinar/p2pclient/src/crypto"
 	"github.com/korayakpinar/p2pclient/src/mempool"
 	"github.com/korayakpinar/p2pclient/src/message"
 	"github.com/korayakpinar/p2pclient/src/types"
@@ -72,7 +72,7 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 				encTx := h.mempool.GetTransaction(txHash)
 				encryptedContent := encTx.Body.EncText
 
-				content, err := api.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
+				content, err := crypto.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
 				if err != nil {
 					errChan <- err
 					return
@@ -125,7 +125,7 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 			for _, encTx := range encBatchMsg.Body.Transactions {
 				txHashes = append(txHashes, string(encTx.Hash))
 				if slices.Contains(encTx.PkIDs, ourIndex) {
-					partDec, err := api.PartialDecrypt(encTx.GammaG2)
+					partDec, err := crypto.PartialDecrypt(encTx.GammaG2)
 					if err != nil {
 						errChan <- err
 						return
@@ -214,6 +214,31 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 			} */
 	}
 
+}
+
+func (h *Handler) HandleTransaction(encTx *types.EncryptedTransaction) {
+	h.mempool.AddEncryptedTx(encTx)
+
+	msg := &message.Message{
+		Message: &message.Message_EncryptedTransaction{
+			EncryptedTransaction: &message.EncryptedTransaction{
+				Header: &message.TransactionHeader{
+					Hash:    encTx.Header.Hash,
+					GammaG2: encTx.Header.GammaG2,
+					PkIDs:   encTx.Header.PkIDs,
+				},
+				Body: &message.TransactionBody{
+					Sa1:     encTx.Body.Sa1,
+					Sa2:     encTx.Body.Sa2,
+					Iv:      encTx.Body.Iv,
+					EncText: encTx.Body.EncText,
+					T:       encTx.Body.Threshold,
+				},
+			},
+		},
+	}
+
+	h.topic.Publish()
 }
 
 func (h *Handler) Stop() {

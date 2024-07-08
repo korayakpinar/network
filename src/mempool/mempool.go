@@ -26,6 +26,7 @@ func NewMempool() *Mempool {
 }
 
 func (m *Mempool) AddEncryptedTx(tx *types.EncryptedTransaction) {
+	//TODO: Check if the transaction is already in the mempool
 	m.encryptedTxs = append(m.encryptedTxs, tx)
 }
 
@@ -53,6 +54,7 @@ func (m *Mempool) RemoveTransactions(txHashes []string) {
 }
 
 func (m *Mempool) AddDecryptedTx(tx *types.DecryptedTransaction) {
+	//TODO: Check if the transaction is already in the mempool
 	m.decryptedTxs = append(m.decryptedTxs, tx)
 }
 
@@ -66,6 +68,7 @@ func (m *Mempool) GetThreshold(hash string) uint32 {
 }
 
 func (m *Mempool) AddPartialDecryption(hash string, partDec *[]byte) {
+	//TODO: Check if the partial decryption is already in the mempool
 	arr := m.partDecRegistry.Load(hash)
 	*arr = append(*arr, *partDec)
 }
@@ -81,6 +84,7 @@ func (m *Mempool) GetPartialDecryptionCount(hash string) uint32 {
 }
 
 func (m *Mempool) AddOrderSig(blockNum uint32, orderSig types.OrderSig) {
+	//TODO: Check if the order signature is already in the mempool
 	orderSigs := m.orderSigRegistry.Load(blockNum)
 	*orderSigs = append(*orderSigs, orderSig)
 }

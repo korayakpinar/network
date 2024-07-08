@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package="src/api";
+option go_package="src/crypto";
 
 
 // DecryptData function messages
@@ -24,6 +24,12 @@ message VerifyPartRequest {
     bytes pk = 1;
     bytes gammaG2 = 2;
     bytes partDec = 3;
+}
+
+message EncryptRequest {
+    repeated bytes pks = 1;
+    uint64 t = 2;
+    uint64 n = 3;
 }
 
 // Response message

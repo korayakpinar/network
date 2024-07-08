@@ -38,11 +38,37 @@ func NewClient(h host.Host, dht *kaddht.IpfsDHT) *Client {
 	return &Client{h, nil, dht, nil, make([]peer.ID, 0)}
 }
 
-func (m *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
-	if m.h.Network().Connectedness(pi.ID) != network.Connected {
-		fmt.Printf("Found %s!\n", pi.ID.ShortString())
-		m.h.Connect(m.ctx, pi)
+func (cli *Client) Start(ctx context.Context, topicName string) {
+	var topicHandle *pubsub.Topic
+	errChan := make(chan error, 4)
+
+	// Start the discovery
+	go cli.startDiscovery(ctx, topicName, errChan)
+
+	// Start the pubsub
+	topicHandle = cli.startPubsub(ctx, topicName, errChan)
+
+	// Subscribe to the topic
+	sub, err := topicHandle.Subscribe()
+	if err != nil {
+		panic(err)
 	}
+
+	// TODO: Remove this, it's just for testing
+	go streamConsoleTo(ctx, topicHandle)
+
+	// Initialize the handler and start it
+	handler := handler.NewHandler(sub, topicHandle)
+	cli.Handler = handler
+	go handler.Start(ctx, errChan)
+
+	select {
+	case err := <-errChan:
+		log.Fatal("Error:", err)
+	default:
+		// do nothing
+	}
+
 }
 
 func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan chan error) {
@@ -126,37 +152,11 @@ func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan ch
 	return topicHandle
 }
 
-func (cli *Client) Start(ctx context.Context, topicName string) {
-	var topicHandle *pubsub.Topic
-	errChan := make(chan error, 4)
-
-	// Start the discovery
-	go cli.startDiscovery(ctx, topicName, errChan)
-
-	// Start the pubsub
-	topicHandle = cli.startPubsub(ctx, topicName, errChan)
-
-	// Subscribe to the topic
-	sub, err := topicHandle.Subscribe()
-	if err != nil {
-		panic(err)
+func (m *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
+	if m.h.Network().Connectedness(pi.ID) != network.Connected {
+		fmt.Printf("Found %s!\n", pi.ID.ShortString())
+		m.h.Connect(m.ctx, pi)
 	}
-
-	// TODO: Remove this, it's just for testing
-	go streamConsoleTo(ctx, topicHandle)
-
-	// Initialize the handler and start it
-	handler := handler.NewHandler(sub, topicHandle)
-	cli.Handler = handler
-	go handler.Start(ctx, errChan)
-
-	select {
-	case err := <-errChan:
-		log.Fatal("Error:", err)
-	default:
-		// do nothing
-	}
-
 }
 
 func initDHT(ctx context.Context, cli *Client) error {
