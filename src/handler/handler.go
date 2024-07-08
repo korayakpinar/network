@@ -237,8 +237,12 @@ func (h *Handler) HandleTransaction(encTx *types.EncryptedTransaction) {
 			},
 		},
 	}
+	bytesMsg, err := proto.Marshal(msg)
+	if err != nil {
+		return
+	}
 
-	h.topic.Publish()
+	h.topic.Publish(context.Background(), bytesMsg)
 }
 
 func (h *Handler) Stop() {
