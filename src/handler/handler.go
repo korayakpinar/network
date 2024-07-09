@@ -2,6 +2,9 @@ package handler
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"math/rand"
 	"slices"
 
 	"github.com/korayakpinar/network/src/crypto"
@@ -159,7 +162,53 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 
 }
 
-func (h *Handler) HandleTransaction(encTx *types.EncryptedTransaction) {
+func (h *Handler) HandleTransaction(tx string) error {
+	// TODO: Get the current committee size from the smart contract
+	var n uint64 = 256
+	var t uint64 = 64
+
+	randomIndexes := make([]uint64, t)
+	for i := 0; i < int(t); i++ {
+		randomIndexes[i] = uint64(rand.Intn(int(n))) // 0 dahil, 256 hariç
+	}
+
+	// TODO: Replace with GetPublicKeys function that gets the public keys of the given indexes
+	pks := make([][]byte, n)
+	for i := 0; i < int(n); i++ {
+		pks[i] = []byte("pk" + string(randomIndexes[i]))
+	}
+
+	rawResp, err := crypto.EncryptTransaction([]byte(tx), pks, t, n)
+	if err != nil {
+		return err
+	}
+
+	var encResponse crypto.EncryptResponse
+	err = proto.Unmarshal(rawResp, &encResponse)
+	if err != nil {
+		return err
+	}
+
+	// Construct the encrypted transaction
+	encTxHeader := &types.EncryptedTxHeader{
+		Hash:    fmt.Sprintf("%x", sha256.Sum256([]byte(tx))),
+		GammaG2: encResponse.GammaG2,
+		PkIDs:   randomIndexes,
+	}
+
+	encTxBody := &types.EncryptedTxBody{
+		Sa1:       encResponse.Sa1,
+		Sa2:       encResponse.Sa2,
+		Iv:        encResponse.Iv,
+		EncText:   encResponse.Enc,
+		Threshold: t,
+	}
+
+	encTx := &types.EncryptedTransaction{
+		Header: encTxHeader,
+		Body:   encTxBody,
+	}
+
 	h.mempool.AddEncryptedTx(encTx)
 
 	msg := &message.Message{
@@ -182,10 +231,15 @@ func (h *Handler) HandleTransaction(encTx *types.EncryptedTransaction) {
 	}
 	bytesMsg, err := proto.Marshal(msg)
 	if err != nil {
-		return
+		return err
 	}
 
-	h.topic.Publish(context.Background(), bytesMsg)
+	err = h.topic.Publish(context.Background(), bytesMsg)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (h *Handler) Stop() {
