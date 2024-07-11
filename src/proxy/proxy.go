@@ -18,6 +18,14 @@ type Proxy struct {
 	Port    string
 }
 
+// TransactionRequest represents the JSON-RPC request for sending a transaction which is taken from the wallet.
+type TransactionRequest struct {
+	ID      int64    `json:"id"`
+	JSONRPC string   `json:"jsonrpc"`
+	Method  string   `json:"method"`
+	Params  []string `json:"params"`
+}
+
 // NewProxy creates a new Proxy instance.
 func NewProxy(handler *handler.Handler, rpcURL, port string) *Proxy {
 	return &Proxy{
@@ -61,14 +69,17 @@ func (p *Proxy) proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if it's one of the specified methods
 	if method == "eth_sendTransaction" || method == "eth_sendRawTransaction" {
-		fmt.Println("Catched!")
+		var req TransactionRequest
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"jsonrpc":"2.0","result":"Catched!","id":1}`))
 
-		// --- TODO ---
-		// Encrypt the transaction data with the encrypt function
-		// Call the Client's add method to add the encrypted transaction to the mempool
-		// and broadcast it to the network
+		if err := json.Unmarshal(body, &req); err != nil {
+			log.Fatalf("Failed to unmarshal JSON: %v", err)
+		}
+		fmt.Println("Transaction request taken from the wallet: ", req.Params[0])
+
+		p.Handler.HandleTransaction(req.Params[0])
 
 		return
 	}

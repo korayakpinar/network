@@ -20,6 +20,172 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type VerifyPartRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Pk      []byte `protobuf:"bytes,1,opt,name=pk,proto3" json:"pk,omitempty"`
+	GammaG2 []byte `protobuf:"bytes,2,opt,name=gamma_g2,json=gammaG2,proto3" json:"gamma_g2,omitempty"`
+	PartDec []byte `protobuf:"bytes,3,opt,name=part_dec,json=partDec,proto3" json:"part_dec,omitempty"`
+}
+
+func (x *VerifyPartRequest) Reset() {
+	*x = VerifyPartRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_src_crypto_api_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *VerifyPartRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyPartRequest) ProtoMessage() {}
+
+func (x *VerifyPartRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_src_crypto_api_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyPartRequest.ProtoReflect.Descriptor instead.
+func (*VerifyPartRequest) Descriptor() ([]byte, []int) {
+	return file_src_crypto_api_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *VerifyPartRequest) GetPk() []byte {
+	if x != nil {
+		return x.Pk
+	}
+	return nil
+}
+
+func (x *VerifyPartRequest) GetGammaG2() []byte {
+	if x != nil {
+		return x.GammaG2
+	}
+	return nil
+}
+
+func (x *VerifyPartRequest) GetPartDec() []byte {
+	if x != nil {
+		return x.PartDec
+	}
+	return nil
+}
+
+type DecryptParamsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Enc   []byte   `protobuf:"bytes,1,opt,name=enc,proto3" json:"enc,omitempty"`
+	Pks   [][]byte `protobuf:"bytes,2,rep,name=pks,proto3" json:"pks,omitempty"`
+	Parts [][]byte `protobuf:"bytes,3,rep,name=parts,proto3" json:"parts,omitempty"`
+	Sa1   []byte   `protobuf:"bytes,4,opt,name=sa1,proto3" json:"sa1,omitempty"`
+	Sa2   []byte   `protobuf:"bytes,5,opt,name=sa2,proto3" json:"sa2,omitempty"`
+	Iv    []byte   `protobuf:"bytes,6,opt,name=iv,proto3" json:"iv,omitempty"`
+	T     uint64   `protobuf:"varint,7,opt,name=t,proto3" json:"t,omitempty"`
+	N     uint64   `protobuf:"varint,8,opt,name=n,proto3" json:"n,omitempty"`
+}
+
+func (x *DecryptParamsRequest) Reset() {
+	*x = DecryptParamsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_src_crypto_api_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DecryptParamsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecryptParamsRequest) ProtoMessage() {}
+
+func (x *DecryptParamsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_src_crypto_api_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecryptParamsRequest.ProtoReflect.Descriptor instead.
+func (*DecryptParamsRequest) Descriptor() ([]byte, []int) {
+	return file_src_crypto_api_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DecryptParamsRequest) GetEnc() []byte {
+	if x != nil {
+		return x.Enc
+	}
+	return nil
+}
+
+func (x *DecryptParamsRequest) GetPks() [][]byte {
+	if x != nil {
+		return x.Pks
+	}
+	return nil
+}
+
+func (x *DecryptParamsRequest) GetParts() [][]byte {
+	if x != nil {
+		return x.Parts
+	}
+	return nil
+}
+
+func (x *DecryptParamsRequest) GetSa1() []byte {
+	if x != nil {
+		return x.Sa1
+	}
+	return nil
+}
+
+func (x *DecryptParamsRequest) GetSa2() []byte {
+	if x != nil {
+		return x.Sa2
+	}
+	return nil
+}
+
+func (x *DecryptParamsRequest) GetIv() []byte {
+	if x != nil {
+		return x.Iv
+	}
+	return nil
+}
+
+func (x *DecryptParamsRequest) GetT() uint64 {
+	if x != nil {
+		return x.T
+	}
+	return 0
+}
+
+func (x *DecryptParamsRequest) GetN() uint64 {
+	if x != nil {
+		return x.N
+	}
+	return 0
+}
+
 type EncryptRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -34,7 +200,7 @@ type EncryptRequest struct {
 func (x *EncryptRequest) Reset() {
 	*x = EncryptRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_src_crypto_api_proto_msgTypes[0]
+		mi := &file_src_crypto_api_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -47,7 +213,7 @@ func (x *EncryptRequest) String() string {
 func (*EncryptRequest) ProtoMessage() {}
 
 func (x *EncryptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_src_crypto_api_proto_msgTypes[0]
+	mi := &file_src_crypto_api_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60,7 +226,7 @@ func (x *EncryptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncryptRequest.ProtoReflect.Descriptor instead.
 func (*EncryptRequest) Descriptor() ([]byte, []int) {
-	return file_src_crypto_api_proto_rawDescGZIP(), []int{0}
+	return file_src_crypto_api_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *EncryptRequest) GetMsg() []byte {
@@ -91,222 +257,6 @@ func (x *EncryptRequest) GetN() uint64 {
 	return 0
 }
 
-// DecryptData function messages
-type DecryptDataRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Enc   []byte   `protobuf:"bytes,1,opt,name=enc,proto3" json:"enc,omitempty"`
-	Pks   [][]byte `protobuf:"bytes,2,rep,name=pks,proto3" json:"pks,omitempty"`
-	Parts [][]byte `protobuf:"bytes,3,rep,name=parts,proto3" json:"parts,omitempty"`
-	Sa1   []byte   `protobuf:"bytes,4,opt,name=sa1,proto3" json:"sa1,omitempty"`
-	Sa2   []byte   `protobuf:"bytes,5,opt,name=sa2,proto3" json:"sa2,omitempty"`
-	Iv    []byte   `protobuf:"bytes,6,opt,name=iv,proto3" json:"iv,omitempty"`
-	T     uint64   `protobuf:"varint,7,opt,name=t,proto3" json:"t,omitempty"`
-	N     uint64   `protobuf:"varint,8,opt,name=n,proto3" json:"n,omitempty"`
-}
-
-func (x *DecryptDataRequest) Reset() {
-	*x = DecryptDataRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_src_crypto_api_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *DecryptDataRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DecryptDataRequest) ProtoMessage() {}
-
-func (x *DecryptDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_src_crypto_api_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DecryptDataRequest.ProtoReflect.Descriptor instead.
-func (*DecryptDataRequest) Descriptor() ([]byte, []int) {
-	return file_src_crypto_api_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *DecryptDataRequest) GetEnc() []byte {
-	if x != nil {
-		return x.Enc
-	}
-	return nil
-}
-
-func (x *DecryptDataRequest) GetPks() [][]byte {
-	if x != nil {
-		return x.Pks
-	}
-	return nil
-}
-
-func (x *DecryptDataRequest) GetParts() [][]byte {
-	if x != nil {
-		return x.Parts
-	}
-	return nil
-}
-
-func (x *DecryptDataRequest) GetSa1() []byte {
-	if x != nil {
-		return x.Sa1
-	}
-	return nil
-}
-
-func (x *DecryptDataRequest) GetSa2() []byte {
-	if x != nil {
-		return x.Sa2
-	}
-	return nil
-}
-
-func (x *DecryptDataRequest) GetIv() []byte {
-	if x != nil {
-		return x.Iv
-	}
-	return nil
-}
-
-func (x *DecryptDataRequest) GetT() uint64 {
-	if x != nil {
-		return x.T
-	}
-	return 0
-}
-
-func (x *DecryptDataRequest) GetN() uint64 {
-	if x != nil {
-		return x.N
-	}
-	return 0
-}
-
-// PartialDecrypt function messages
-type PartialDecryptRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	GammaG2 []byte `protobuf:"bytes,1,opt,name=gammaG2,proto3" json:"gammaG2,omitempty"`
-}
-
-func (x *PartialDecryptRequest) Reset() {
-	*x = PartialDecryptRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_src_crypto_api_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *PartialDecryptRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PartialDecryptRequest) ProtoMessage() {}
-
-func (x *PartialDecryptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_src_crypto_api_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PartialDecryptRequest.ProtoReflect.Descriptor instead.
-func (*PartialDecryptRequest) Descriptor() ([]byte, []int) {
-	return file_src_crypto_api_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *PartialDecryptRequest) GetGammaG2() []byte {
-	if x != nil {
-		return x.GammaG2
-	}
-	return nil
-}
-
-// VerifyPart function messages
-type VerifyPartRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Pk      []byte `protobuf:"bytes,1,opt,name=pk,proto3" json:"pk,omitempty"`
-	GammaG2 []byte `protobuf:"bytes,2,opt,name=gammaG2,proto3" json:"gammaG2,omitempty"`
-	PartDec []byte `protobuf:"bytes,3,opt,name=partDec,proto3" json:"partDec,omitempty"`
-}
-
-func (x *VerifyPartRequest) Reset() {
-	*x = VerifyPartRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_src_crypto_api_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *VerifyPartRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*VerifyPartRequest) ProtoMessage() {}
-
-func (x *VerifyPartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_src_crypto_api_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VerifyPartRequest.ProtoReflect.Descriptor instead.
-func (*VerifyPartRequest) Descriptor() ([]byte, []int) {
-	return file_src_crypto_api_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *VerifyPartRequest) GetPk() []byte {
-	if x != nil {
-		return x.Pk
-	}
-	return nil
-}
-
-func (x *VerifyPartRequest) GetGammaG2() []byte {
-	if x != nil {
-		return x.GammaG2
-	}
-	return nil
-}
-
-func (x *VerifyPartRequest) GetPartDec() []byte {
-	if x != nil {
-		return x.PartDec
-	}
-	return nil
-}
-
 type EncryptResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -322,7 +272,7 @@ type EncryptResponse struct {
 func (x *EncryptResponse) Reset() {
 	*x = EncryptResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_src_crypto_api_proto_msgTypes[4]
+		mi := &file_src_crypto_api_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -335,7 +285,7 @@ func (x *EncryptResponse) String() string {
 func (*EncryptResponse) ProtoMessage() {}
 
 func (x *EncryptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_src_crypto_api_proto_msgTypes[4]
+	mi := &file_src_crypto_api_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -348,7 +298,7 @@ func (x *EncryptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncryptResponse.ProtoReflect.Descriptor instead.
 func (*EncryptResponse) Descriptor() ([]byte, []int) {
-	return file_src_crypto_api_proto_rawDescGZIP(), []int{4}
+	return file_src_crypto_api_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *EncryptResponse) GetEnc() []byte {
@@ -386,7 +336,53 @@ func (x *EncryptResponse) GetGammaG2() []byte {
 	return nil
 }
 
-// Response message
+type GammaG2Request struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GammaG2 []byte `protobuf:"bytes,1,opt,name=gamma_g2,json=gammaG2,proto3" json:"gamma_g2,omitempty"`
+}
+
+func (x *GammaG2Request) Reset() {
+	*x = GammaG2Request{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_src_crypto_api_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GammaG2Request) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GammaG2Request) ProtoMessage() {}
+
+func (x *GammaG2Request) ProtoReflect() protoreflect.Message {
+	mi := &file_src_crypto_api_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GammaG2Request.ProtoReflect.Descriptor instead.
+func (*GammaG2Request) Descriptor() ([]byte, []int) {
+	return file_src_crypto_api_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GammaG2Request) GetGammaG2() []byte {
+	if x != nil {
+		return x.GammaG2
+	}
+	return nil
+}
+
 type Response struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -438,42 +434,42 @@ var File_src_crypto_api_proto protoreflect.FileDescriptor
 
 var file_src_crypto_api_proto_rawDesc = []byte{
 	0x0a, 0x14, 0x73, 0x72, 0x63, 0x2f, 0x63, 0x72, 0x79, 0x70, 0x74, 0x6f, 0x2f, 0x61, 0x70, 0x69,
-	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x50, 0x0a, 0x0e, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70,
-	0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x6d, 0x73, 0x67, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6d, 0x73, 0x67, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x6b,
-	0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x03, 0x70, 0x6b, 0x73, 0x12, 0x0c, 0x0a, 0x01,
-	0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x01, 0x74, 0x12, 0x0c, 0x0a, 0x01, 0x6e, 0x18,
-	0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x01, 0x6e, 0x22, 0x9e, 0x01, 0x0a, 0x12, 0x44, 0x65, 0x63,
-	0x72, 0x79, 0x70, 0x74, 0x44, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
-	0x10, 0x0a, 0x03, 0x65, 0x6e, 0x63, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x65, 0x6e,
-	0x63, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x6b, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x03,
-	0x70, 0x6b, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x70, 0x61, 0x72, 0x74, 0x73, 0x18, 0x03, 0x20, 0x03,
-	0x28, 0x0c, 0x52, 0x05, 0x70, 0x61, 0x72, 0x74, 0x73, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x61, 0x31,
-	0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x61, 0x31, 0x12, 0x10, 0x0a, 0x03, 0x73,
-	0x61, 0x32, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x61, 0x32, 0x12, 0x0e, 0x0a,
-	0x02, 0x69, 0x76, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x02, 0x69, 0x76, 0x12, 0x0c, 0x0a,
-	0x01, 0x74, 0x18, 0x07, 0x20, 0x01, 0x28, 0x04, 0x52, 0x01, 0x74, 0x12, 0x0c, 0x0a, 0x01, 0x6e,
-	0x18, 0x08, 0x20, 0x01, 0x28, 0x04, 0x52, 0x01, 0x6e, 0x22, 0x31, 0x0a, 0x15, 0x50, 0x61, 0x72,
-	0x74, 0x69, 0x61, 0x6c, 0x44, 0x65, 0x63, 0x72, 0x79, 0x70, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x0c, 0x52, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x22, 0x57, 0x0a, 0x11,
-	0x56, 0x65, 0x72, 0x69, 0x66, 0x79, 0x50, 0x61, 0x72, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x12, 0x0e, 0x0a, 0x02, 0x70, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x02, 0x70,
-	0x6b, 0x12, 0x18, 0x0a, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x0c, 0x52, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x12, 0x18, 0x0a, 0x07, 0x70,
-	0x61, 0x72, 0x74, 0x44, 0x65, 0x63, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x70, 0x61,
-	0x72, 0x74, 0x44, 0x65, 0x63, 0x22, 0x72, 0x0a, 0x0f, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x65, 0x6e, 0x63, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x65, 0x6e, 0x63, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x61,
-	0x31, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x61, 0x31, 0x12, 0x10, 0x0a, 0x03,
-	0x73, 0x61, 0x32, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x61, 0x32, 0x12, 0x0e,
-	0x0a, 0x02, 0x69, 0x76, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x02, 0x69, 0x76, 0x12, 0x19,
-	0x0a, 0x08, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x5f, 0x67, 0x32, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0c,
-	0x52, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x22, 0x22, 0x0a, 0x08, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x42, 0x0c, 0x5a,
-	0x0a, 0x73, 0x72, 0x63, 0x2f, 0x63, 0x72, 0x79, 0x70, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x59, 0x0a, 0x11, 0x56, 0x65, 0x72, 0x69, 0x66, 0x79,
+	0x50, 0x61, 0x72, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x70,
+	0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x02, 0x70, 0x6b, 0x12, 0x19, 0x0a, 0x08, 0x67,
+	0x61, 0x6d, 0x6d, 0x61, 0x5f, 0x67, 0x32, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x67,
+	0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x12, 0x19, 0x0a, 0x08, 0x70, 0x61, 0x72, 0x74, 0x5f, 0x64,
+	0x65, 0x63, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x70, 0x61, 0x72, 0x74, 0x44, 0x65,
+	0x63, 0x22, 0xa0, 0x01, 0x0a, 0x14, 0x44, 0x65, 0x63, 0x72, 0x79, 0x70, 0x74, 0x50, 0x61, 0x72,
+	0x61, 0x6d, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x65, 0x6e,
+	0x63, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x65, 0x6e, 0x63, 0x12, 0x10, 0x0a, 0x03,
+	0x70, 0x6b, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x03, 0x70, 0x6b, 0x73, 0x12, 0x14,
+	0x0a, 0x05, 0x70, 0x61, 0x72, 0x74, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x05, 0x70,
+	0x61, 0x72, 0x74, 0x73, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x61, 0x31, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x0c, 0x52, 0x03, 0x73, 0x61, 0x31, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x61, 0x32, 0x18, 0x05, 0x20,
+	0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x61, 0x32, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x76, 0x18, 0x06,
+	0x20, 0x01, 0x28, 0x0c, 0x52, 0x02, 0x69, 0x76, 0x12, 0x0c, 0x0a, 0x01, 0x74, 0x18, 0x07, 0x20,
+	0x01, 0x28, 0x04, 0x52, 0x01, 0x74, 0x12, 0x0c, 0x0a, 0x01, 0x6e, 0x18, 0x08, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x01, 0x6e, 0x22, 0x50, 0x0a, 0x0e, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x6d, 0x73, 0x67, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0c, 0x52, 0x03, 0x6d, 0x73, 0x67, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x6b, 0x73, 0x18,
+	0x02, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x03, 0x70, 0x6b, 0x73, 0x12, 0x0c, 0x0a, 0x01, 0x74, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x01, 0x74, 0x12, 0x0c, 0x0a, 0x01, 0x6e, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x04, 0x52, 0x01, 0x6e, 0x22, 0x72, 0x0a, 0x0f, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70,
+	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x65, 0x6e, 0x63,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x65, 0x6e, 0x63, 0x12, 0x10, 0x0a, 0x03, 0x73,
+	0x61, 0x31, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x61, 0x31, 0x12, 0x10, 0x0a,
+	0x03, 0x73, 0x61, 0x32, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x61, 0x32, 0x12,
+	0x0e, 0x0a, 0x02, 0x69, 0x76, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x02, 0x69, 0x76, 0x12,
+	0x19, 0x0a, 0x08, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x5f, 0x67, 0x32, 0x18, 0x05, 0x20, 0x01, 0x28,
+	0x0c, 0x52, 0x07, 0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x22, 0x2b, 0x0a, 0x0e, 0x47, 0x61,
+	0x6d, 0x6d, 0x61, 0x47, 0x32, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x19, 0x0a, 0x08,
+	0x67, 0x61, 0x6d, 0x6d, 0x61, 0x5f, 0x67, 0x32, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07,
+	0x67, 0x61, 0x6d, 0x6d, 0x61, 0x47, 0x32, 0x22, 0x22, 0x0a, 0x08, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0c, 0x52, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x42, 0x0c, 0x5a, 0x0a, 0x73,
+	0x72, 0x63, 0x2f, 0x63, 0x72, 0x79, 0x70, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -490,12 +486,12 @@ func file_src_crypto_api_proto_rawDescGZIP() []byte {
 
 var file_src_crypto_api_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_src_crypto_api_proto_goTypes = []any{
-	(*EncryptRequest)(nil),        // 0: EncryptRequest
-	(*DecryptDataRequest)(nil),    // 1: DecryptDataRequest
-	(*PartialDecryptRequest)(nil), // 2: PartialDecryptRequest
-	(*VerifyPartRequest)(nil),     // 3: VerifyPartRequest
-	(*EncryptResponse)(nil),       // 4: EncryptResponse
-	(*Response)(nil),              // 5: Response
+	(*VerifyPartRequest)(nil),    // 0: VerifyPartRequest
+	(*DecryptParamsRequest)(nil), // 1: DecryptParamsRequest
+	(*EncryptRequest)(nil),       // 2: EncryptRequest
+	(*EncryptResponse)(nil),      // 3: EncryptResponse
+	(*GammaG2Request)(nil),       // 4: GammaG2Request
+	(*Response)(nil),             // 5: Response
 }
 var file_src_crypto_api_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -512,42 +508,6 @@ func file_src_crypto_api_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_src_crypto_api_proto_msgTypes[0].Exporter = func(v any, i int) any {
-			switch v := v.(*EncryptRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_src_crypto_api_proto_msgTypes[1].Exporter = func(v any, i int) any {
-			switch v := v.(*DecryptDataRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_src_crypto_api_proto_msgTypes[2].Exporter = func(v any, i int) any {
-			switch v := v.(*PartialDecryptRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_src_crypto_api_proto_msgTypes[3].Exporter = func(v any, i int) any {
 			switch v := v.(*VerifyPartRequest); i {
 			case 0:
 				return &v.state
@@ -559,8 +519,44 @@ func file_src_crypto_api_proto_init() {
 				return nil
 			}
 		}
-		file_src_crypto_api_proto_msgTypes[4].Exporter = func(v any, i int) any {
+		file_src_crypto_api_proto_msgTypes[1].Exporter = func(v any, i int) any {
+			switch v := v.(*DecryptParamsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_src_crypto_api_proto_msgTypes[2].Exporter = func(v any, i int) any {
+			switch v := v.(*EncryptRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_src_crypto_api_proto_msgTypes[3].Exporter = func(v any, i int) any {
 			switch v := v.(*EncryptResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_src_crypto_api_proto_msgTypes[4].Exporter = func(v any, i int) any {
+			switch v := v.(*GammaG2Request); i {
 			case 0:
 				return &v.state
 			case 1:

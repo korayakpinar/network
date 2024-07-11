@@ -86,7 +86,7 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 						PkIDs: encTx.Header.PkIDs,
 					},
 					Body: &types.DecryptedTxBody{
-						Content: content,
+						Content: string(content),
 					},
 				})
 
