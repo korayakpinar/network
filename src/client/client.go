@@ -10,7 +10,6 @@ import (
 
 	"github.com/korayakpinar/network/src/handler"
 	"github.com/korayakpinar/network/src/proxy"
-	"github.com/korayakpinar/network/src/utils"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -28,7 +27,8 @@ type Client struct {
 	Handler   *handler.Handler
 	Proxy     *proxy.Proxy
 	operators []peer.ID
-	cfg       utils.Config
+	proxyPort string
+	rpcUrl    string
 }
 
 type discoveryNotifee struct {
@@ -36,8 +36,8 @@ type discoveryNotifee struct {
 	ctx context.Context
 }
 
-func NewClient(h host.Host, dht *kaddht.IpfsDHT, cfg utils.Config) *Client {
-	return &Client{h, nil, dht, nil, nil, make([]peer.ID, 0), cfg}
+func NewClient(h host.Host, dht *kaddht.IpfsDHT, proxyPort string, rpcUrl string) *Client {
+	return &Client{h, nil, dht, nil, nil, make([]peer.ID, 0), proxyPort, rpcUrl}
 }
 
 func (cli *Client) Start(ctx context.Context, topicName string) {
@@ -65,7 +65,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	go handler.Start(ctx, errChan)
 
 	// Start the proxy server
-	proxy := proxy.NewProxy(handler, "http://localhost:8545", cli.cfg.Port)
+	proxy := proxy.NewProxy(handler, cli.rpcUrl, cli.proxyPort)
 	cli.Proxy = proxy
 	go proxy.Start()
 

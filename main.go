@@ -16,7 +16,10 @@ import (
 )
 
 var (
-	cfgPath = flag.String("config", "./config.toml", "Path to the config file")
+	topicName = flag.String("topic", "test", "Topic name")
+	privKey   = flag.String("privKey", "", "Private key in hex format")
+	proxyPort = flag.String("proxyPort", "8082", "Port for the proxy server")
+	rpcURL    = flag.String("rpcURL", "", "URL of the RPC server")
 )
 
 func main() {
@@ -24,12 +27,7 @@ func main() {
 	flag.Parse()
 	ctx := context.Background()
 
-	cfg, err := utils.LoadConfig(*cfgPath)
-	if err != nil {
-		panic(err)
-	}
-
-	priv, err := utils.EthToLibp2pPrivKey(cfg.PrivKey)
+	priv, err := utils.EthToLibp2pPrivKey(*privKey)
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +62,7 @@ func main() {
 	}
 
 	// Initialize the client
-	client := client.NewClient(h, dht, cfg)
+	client := client.NewClient(h, dht, *proxyPort, *rpcURL)
 
 	fmt.Println("Host created, ID:", h.ID())
 	ethAddr, err := utils.IdToEthAddress(h.ID())
@@ -74,7 +72,7 @@ func main() {
 	}
 	fmt.Println("Pub Addr:", ethAddr)
 
-	go client.Start(ctx, cfg.TopicName)
+	go client.Start(ctx, *topicName)
 
 	select {}
 }
