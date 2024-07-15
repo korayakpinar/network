@@ -135,6 +135,42 @@ func PartialDecrypt(gammaG2 []byte) ([]byte, error) {
 	return partDecResp.Result, nil
 }
 
+func GetPK(id uint64, n uint64) ([]byte, error) {
+	client := http.Client{}
+
+	req := &PKRequest{
+		Id: id,
+		N:  n,
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	postReader := bytes.NewReader(data)
+
+	resp, err := client.Post("http://127.0.0.1:8080/getpk", "application/protobuf", postReader)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	var partDecResp Response
+	err = proto.Unmarshal(bodyBytes, &partDecResp)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	return partDecResp.Result, nil
+}
+
 func VerifyPart(pk []byte, gammaG2 []byte, partDec []byte) error {
 	client := http.Client{}
 
