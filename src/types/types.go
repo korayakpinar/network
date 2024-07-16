@@ -1,5 +1,10 @@
 package types
 
+import (
+	"bytes"
+	"encoding/binary"
+)
+
 // EncryptedTransaction represents the encrypted transaction
 type EncryptedTransaction struct {
 	Header *EncryptedTxHeader
@@ -49,6 +54,35 @@ type BatchHeader struct {
 
 type BatchBody struct {
 	EncTxs []*EncryptedTxHeader
+}
+
+func (b *BatchBody) Bytes() []byte {
+	buffer := new(bytes.Buffer)
+
+	// EncTxs slice'ının uzunluğunu yaz
+	binary.Write(buffer, binary.LittleEndian, uint32(len(b.EncTxs)))
+
+	// Her bir EncryptedTxHeader'ı sırayla yaz
+	for _, encTx := range b.EncTxs {
+		// Hash'i yaz
+		hashBytes := []byte(encTx.Hash)
+		binary.Write(buffer, binary.LittleEndian, uint32(len(hashBytes)))
+		buffer.Write(hashBytes)
+
+		// GammaG2'yi yaz
+		binary.Write(buffer, binary.LittleEndian, uint32(len(encTx.GammaG2)))
+		buffer.Write(encTx.GammaG2)
+
+		// PkIDs slice'ının uzunluğunu yaz
+		binary.Write(buffer, binary.LittleEndian, uint32(len(encTx.PkIDs)))
+
+		// PkIDs'leri yaz
+		for _, pkID := range encTx.PkIDs {
+			binary.Write(buffer, binary.LittleEndian, pkID)
+		}
+	}
+
+	return buffer.Bytes()
 }
 
 type OrderSig struct {

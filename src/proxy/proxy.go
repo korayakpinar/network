@@ -79,7 +79,10 @@ func (p *Proxy) proxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Println("Transaction request taken from the wallet: ", req.Params[0])
 
-		p.Handler.HandleTransaction(req.Params[0])
+		err = p.Handler.HandleTransaction(req.Params[0])
+		if err != nil {
+			log.Fatalf("Failed to handle transaction: %v", err)
+		}
 
 		return
 	}

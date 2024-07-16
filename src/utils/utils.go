@@ -30,8 +30,23 @@ func EthToLibp2pPrivKey(key string) (crypto.PrivKey, error) {
 	return priv, nil
 }
 
-func IdFromPubKey(privKey string) (*peer.ID, error) {
-	publicKeyECDSA, err := ethCrypto.HexToECDSA(privKey)
+func SignTheHash(privKey string, hash []byte) ([]byte, error) {
+	privKeyECDSA, err := ethCrypto.HexToECDSA(privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	signature, err := ethCrypto.Sign(hash, privKeyECDSA)
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, nil
+
+}
+
+func IdFromPubKey(pubKey string) (*peer.ID, error) {
+	publicKeyECDSA, err := ethCrypto.HexToECDSA(pubKey)
 	if err != nil {
 		return nil, err
 	}
