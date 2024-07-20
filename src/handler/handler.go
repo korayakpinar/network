@@ -33,18 +33,19 @@ type Handler struct {
 	topic   *pubsub.Topic
 	mempool *mempool.Mempool
 	signers *[]Signer
+	crypto  *crypto.Crypto
 
 	privKey       string
 	rpcUrl        string
 	committeeSize uint64
 	ourIndex      uint64
 	threshold     uint64
-	apiPort       string
 }
 
 func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, signers *[]Signer, privKey, rpcUrl, apiPort string, commmitteeSize, ourIndex, threshold uint64) *Handler {
 	mempool := mempool.NewMempool()
-	return &Handler{sub: sub, topic: topic, mempool: mempool, signers: signers, privKey: privKey, rpcUrl: rpcUrl, committeeSize: commmitteeSize, ourIndex: ourIndex, threshold: threshold, apiPort: apiPort}
+	crypto := crypto.NewCrypto(apiPort)
+	return &Handler{sub: sub, topic: topic, mempool: mempool, signers: signers, crypto: crypto, privKey: privKey, rpcUrl: rpcUrl, committeeSize: commmitteeSize, ourIndex: ourIndex, threshold: threshold}
 }
 
 func (h *Handler) Start(ctx context.Context, errChan chan error) {
@@ -159,7 +160,7 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 					encTx := h.mempool.GetTransaction(txHash)
 					encryptedContent := encTx.Body.EncText
 
-					content, err := crypto.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
+					content, err := h.crypto.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
 					if err != nil {
 						errChan <- err
 						return
@@ -204,7 +205,7 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 				for _, encTx := range encBatchMsg.Body.Transactions {
 					txHashes = append(txHashes, string(encTx.Hash))
 					if slices.Contains(encTx.PkIDs, ourIndex) {
-						partDec, err := crypto.PartialDecrypt(encTx.GammaG2)
+						partDec, err := h.crypto.PartialDecrypt(encTx.GammaG2)
 						if err != nil {
 							errChan <- err
 							return
@@ -275,7 +276,7 @@ func (h *Handler) HandleTransaction(tx string) error {
 		pks[i] = ourSigners[i].blsKey
 	}
 
-	rawResp, err := crypto.EncryptTransaction([]byte(tx), pks, h.threshold, h.committeeSize)
+	rawResp, err := h.crypto.EncryptTransaction([]byte(tx), pks, h.threshold, h.committeeSize)
 	if err != nil {
 		return err
 	}

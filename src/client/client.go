@@ -107,6 +107,8 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		return
 	}
 
+	api := api.NewCrypto(cli.apiPort)
+
 	// Get and deploy BLS Public Key
 	blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
 	if err != nil {

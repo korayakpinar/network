@@ -9,7 +9,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, error) {
+type Crypto struct {
+	port string
+}
+
+func NewCrypto(port string) *Crypto {
+	return &Crypto{port: port}
+}
+
+func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, error) {
 	client := http.Client{}
 
 	req := &EncryptRequest{
@@ -25,7 +33,8 @@ func EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, e
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/encrypt", "application/protobuf", postReader)
+	url := fmt.Sprintf("http://127.0.0.1:%s/encrypt", c.port)
+	resp, err := client.Post(url, "application/protobuf", postReader)
 
 	if err != nil {
 		return nil, err
@@ -50,7 +59,7 @@ func EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) ([]byte, e
 	return encryptDataResp.Result, nil
 }
 
-func DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
+func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
 	client := http.Client{}
 
 	req := &DecryptParamsRequest{
@@ -70,7 +79,8 @@ func DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/decrypt", "application/protobuf", postReader)
+	url := fmt.Sprintf("http://127.0.0.1:%s/decrypt", c.port)
+	resp, err := client.Post(url, "application/protobuf", postReader)
 
 	if err != nil {
 		return nil, err
@@ -94,7 +104,7 @@ func DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa
 	return decryptDataResp.Result, nil
 }
 
-func PartialDecrypt(gammaG2 []byte) ([]byte, error) {
+func (c *Crypto) PartialDecrypt(gammaG2 []byte) ([]byte, error) {
 	client := http.Client{}
 
 	req := &GammaG2Request{
@@ -108,7 +118,8 @@ func PartialDecrypt(gammaG2 []byte) ([]byte, error) {
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/partdec", "application/protobuf", postReader)
+	url := fmt.Sprintf("http://127.0.0.1:%s/partdec", c.port)
+	resp, err := client.Post(url, "application/protobuf", postReader)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -135,7 +146,7 @@ func PartialDecrypt(gammaG2 []byte) ([]byte, error) {
 	return partDecResp.Result, nil
 }
 
-func GetPK(id uint64, n uint64) ([]byte, error) {
+func (c *Crypto) GetPK(id uint64, n uint64) ([]byte, error) {
 	client := http.Client{}
 
 	req := &PKRequest{
@@ -149,7 +160,8 @@ func GetPK(id uint64, n uint64) ([]byte, error) {
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/getpk", "application/protobuf", postReader)
+	url := fmt.Sprintf("http://127.0.0.1:%s/getpk", c.port)
+	resp, err := client.Post(url, "application/protobuf", postReader)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +183,7 @@ func GetPK(id uint64, n uint64) ([]byte, error) {
 	return partDecResp.Result, nil
 }
 
-func VerifyPart(pk []byte, gammaG2 []byte, partDec []byte) error {
+func (c *Crypto) VerifyPart(pk []byte, gammaG2 []byte, partDec []byte) error {
 	client := http.Client{}
 
 	req := &VerifyPartRequest{
@@ -186,7 +198,8 @@ func VerifyPart(pk []byte, gammaG2 []byte, partDec []byte) error {
 
 	postReader := bytes.NewReader(data)
 
-	resp, err := client.Post("http://127.0.0.1:8080/verifydec", "application/protobuf", postReader)
+	url := fmt.Sprintf("http://127.0.0.1:%s/verifypart", c.port)
+	resp, err := client.Post(url, "application/protobuf", postReader)
 	if err != nil {
 		return err
 	}
