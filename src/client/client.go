@@ -44,6 +44,7 @@ type Client struct {
 	rpcUrl        string
 	contractAddr  string
 	privKey       string
+	apiPort       string
 	committeeSize uint64
 }
 
@@ -52,9 +53,9 @@ type discoveryNotifee struct {
 	ctx context.Context
 }
 
-func NewClient(h host.Host, dht *kaddht.IpfsDHT, proxyPort string, rpcUrl string, contractAddr string, privKey string, committeSize uint64) *Client {
+func NewClient(h host.Host, dht *kaddht.IpfsDHT, apiPort, proxyPort, rpcUrl, contractAddr, privKey string, committeSize uint64) *Client {
 	signerArr := make([]handler.Signer, 0)
-	return &Client{h, nil, dht, nil, nil, &signerArr, proxyPort, rpcUrl, contractAddr, privKey, committeSize}
+	return &Client{h, nil, dht, nil, nil, &signerArr, proxyPort, rpcUrl, contractAddr, privKey, apiPort, committeSize}
 }
 
 func (cli *Client) Start(ctx context.Context, topicName string) {
@@ -215,7 +216,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	go streamConsoleTo(ctx, topicHandle)
 
 	// Initialize the handler and start it
-	handler := handler.NewHandler(sub, topicHandle, &signers, cli.privKey, cli.rpcUrl, cli.committeeSize, ourIndex.Uint64(), cli.committeeSize/2)
+	handler := handler.NewHandler(sub, topicHandle, &signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize, ourIndex.Uint64(), cli.committeeSize/2)
 	cli.Handler = handler
 	go handler.Start(ctx, errChan)
 

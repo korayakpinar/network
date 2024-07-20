@@ -39,11 +39,12 @@ type Handler struct {
 	committeeSize uint64
 	ourIndex      uint64
 	threshold     uint64
+	apiPort       string
 }
 
-func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, signers *[]Signer, privKey, rpcUrl string, commmitteeSize, ourIndex, threshold uint64) *Handler {
+func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, signers *[]Signer, privKey, rpcUrl, apiPort string, commmitteeSize, ourIndex, threshold uint64) *Handler {
 	mempool := mempool.NewMempool()
-	return &Handler{sub: sub, topic: topic, mempool: mempool, signers: signers, privKey: privKey, rpcUrl: rpcUrl, committeeSize: commmitteeSize, ourIndex: ourIndex, threshold: threshold}
+	return &Handler{sub: sub, topic: topic, mempool: mempool, signers: signers, privKey: privKey, rpcUrl: rpcUrl, committeeSize: commmitteeSize, ourIndex: ourIndex, threshold: threshold, apiPort: apiPort}
 }
 
 func (h *Handler) Start(ctx context.Context, errChan chan error) {

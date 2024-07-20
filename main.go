@@ -18,6 +18,7 @@ import (
 var (
 	topicName     = flag.String("topic", "test", "Topic name")
 	privKey       = flag.String("privKey", "", "Private key in hex format")
+	apiPort       = flag.String("apiPort", "8081", "Port for the API server")
 	proxyPort     = flag.String("proxyPort", "8082", "Port for the proxy server")
 	rpcURL        = flag.String("rpcURL", "", "URL of the RPC server")
 	contractAddr  = flag.String("contractAddr", "", "Address of the smart contract")
@@ -63,7 +64,7 @@ func main() {
 	}
 
 	// Initialize the client
-	client := client.NewClient(h, dht, *proxyPort, *rpcURL, *contractAddr, *privKey, *committeeSize)
+	client := client.NewClient(h, dht, *apiPort, *proxyPort, *rpcURL, *contractAddr, *privKey, *committeeSize)
 
 	fmt.Println("Host created, ID:", h.ID())
 	ethAddr, err := utils.IdToEthAddress(h.ID())
