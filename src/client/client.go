@@ -104,7 +104,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 		api := api.NewCrypto(cli.apiPort)
 
-		ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
+		ourIndex, err := operatorsContract.GetOperatorCount(nil)
 		if err != nil {
 			log.Panicln("Get operator by index call went wrong, error: ", err)
 			return
@@ -112,6 +112,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 		// Get and deploy BLS Public Key
 		blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
+		fmt.Println("BLS Public Key: ", blsPubKey)
 		if err != nil {
 			log.Panicln("API couldn't send the BLS Public Key, error: ", err)
 			return
@@ -136,7 +137,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	var operatorCount *big.Int = big.NewInt(0)
 	for operatorCount.Int64() < int64(cli.committeeSize) {
 		operatorCount, err = operatorsContract.GetOperatorCount(nil)
-		if err != nil && err.Error() != "EOF" {
+		if err != nil {
 			log.Panicln("Couldn't get the operator count from the RPC, error: ", err)
 			return
 		}
