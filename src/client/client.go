@@ -3,7 +3,6 @@ package client
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -23,7 +22,6 @@ import (
 	"github.com/korayakpinar/network/src/handler"
 
 	"github.com/korayakpinar/network/src/proxy"
-	"github.com/korayakpinar/network/src/utils"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -254,7 +252,7 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 
 func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan chan error) (topic *pubsub.Topic) {
 
-	inspector := func(pid peer.ID, rpc *pubsub.RPC) error {
+	/* inspector := func(pid peer.ID, rpc *pubsub.RPC) error {
 		ethAddr := utils.IdToEthAddress(pid)
 
 		signers := *cli.Handler.GetSigners()
@@ -265,13 +263,13 @@ func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan ch
 		}
 
 		return errors.New("not a operator")
-	}
+	} */
 
 	// Create a new PubSub service using the GossipSub router
 	opts := []pubsub.Option{
 		pubsub.WithMessageAuthor(cli.Host.ID()),
 		pubsub.WithStrictSignatureVerification(true),
-		pubsub.WithAppSpecificRpcInspector(inspector),
+		/* pubsub.WithAppSpecificRpcInspector(inspector), */
 	}
 
 	ps, err := pubsub.NewGossipSub(ctx, cli.Host, opts...)
