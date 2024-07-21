@@ -120,7 +120,13 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		return
 	}
 
-	if key, _ := operatorsContract.GetBLSPubKey(nil, auth.From); key == nil {
+	operator, err := operatorsContract.Operators(nil, ourIndex)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	if operator.HasSubmittedKey == false {
 		api := api.NewCrypto(cli.apiPort)
 
 		// Get and deploy BLS Public Key
