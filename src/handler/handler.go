@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"slices"
@@ -276,12 +277,14 @@ func (h *Handler) HandleTransaction(tx string) error {
 
 	rawResp, err := h.crypto.EncryptTransaction([]byte(tx), pks, h.threshold, h.committeeSize)
 	if err != nil {
+		log.Println("Error while encrypting the transaction: ", err)
 		return err
 	}
 
 	var encResponse crypto.EncryptResponse
 	err = proto.Unmarshal(rawResp, &encResponse)
 	if err != nil {
+		log.Println("Error while unmarshalling the encrypted response: ", err)
 		return err
 	}
 
