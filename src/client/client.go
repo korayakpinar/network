@@ -136,7 +136,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	var operatorCount *big.Int = big.NewInt(0)
 	for operatorCount.Int64() < int64(cli.committeeSize) {
 		operatorCount, err = operatorsContract.GetOperatorCount(nil)
-		if err != nil {
+		if err != nil && err.Error() != "EOF" {
 			log.Panicln("Couldn't get the operator count from the RPC, error: ", err)
 			return
 		}
