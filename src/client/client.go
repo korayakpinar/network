@@ -65,38 +65,38 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	// Initialize ethClient and register the operator
 	ethClient, err := ethclient.Dial(cli.rpcUrl)
 	if err != nil {
-		log.Fatal(err)
+		log.Panicln("Couldn't dial to rpc, error: ", err)
 		return
 	}
 
 	operatorsAddr := common.HexToAddress(cli.contractAddr)
 	operatorsContract, err := contracts.NewOperators(operatorsAddr, ethClient)
 	if err != nil {
-		log.Fatal(err)
+		log.Panicln("Couldn't create operators contract, error: ", err)
 		return
 	}
 
 	ecdsaPrivKey, err := crypto.HexToECDSA(cli.privKey)
 	if err != nil {
-		log.Fatal(err)
+		log.Panicln("Couldn't get ECDSA private key from hex, error: ", err)
 		return
 	}
 
 	chainID, err := ethClient.ChainID(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		log.Panicln("Couldn't get chain id from the RPC, error: ", err)
 		return
 	}
 
 	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID)
 	if err != nil {
-		log.Fatal(err)
+		log.Panicln("Couldn't get the keyed transactor, error: ", err)
 		return
 	}
 
 	registered, err := operatorsContract.IsRegistered(nil, auth.From)
 	if err != nil {
-		log.Fatal(err)
+		log.Panicln("Is registered call went wrong, error: ", err)
 		return
 	}
 
@@ -106,14 +106,14 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 		ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
 		if err != nil {
-			log.Fatal(err)
+			log.Panicln("Get operator by index call went wrong, error: ", err)
 			return
 		}
 
 		// Get and deploy BLS Public Key
 		blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
 		if err != nil {
-			log.Fatal(err)
+			log.Panicln("API couldn't send the BLS Public Key, error: ", err)
 			return
 		}
 
@@ -121,7 +121,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return operatorsContract.RegisterOperator(auth, blsPubKey)
 		})
 		if err != nil {
-			log.Fatal(err)
+			log.Panicln("Registration transaction couldn't be successful, error: ", err)
 			return
 		}
 		log.Printf("Operator registered with tx: %s\n", tx.Hash().Hex())
@@ -137,7 +137,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	for operatorCount.Int64() < int64(cli.committeeSize) {
 		operatorCount, err = operatorsContract.GetOperatorCount(nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Panicln("Couldn't get the operator count from the RPC, error: ", err)
 			return
 		}
 		log.Println("Waiting for all operators to be registered...")
@@ -149,13 +149,13 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	for i := 0; i < int(operatorCount.Int64()); i++ {
 		operator, err := operatorsContract.Operators(nil, big.NewInt(int64(i)))
 		if err != nil {
-			log.Fatal(err)
+			log.Panicln("Couldn't get the operators from the RPC, error: ", err)
 			return
 		}
 
 		signerKey, err := operatorsContract.GetBLSPubKeyByIndex(nil, big.NewInt(int64(i)))
 		if err != nil {
-			log.Fatal(err)
+			log.Panicln("Couldn't get the BLS Pub Key by Index from the contract, error: ", err)
 			return
 		}
 
