@@ -67,11 +67,8 @@ func main() {
 	client := client.NewClient(h, dht, *apiPort, *proxyPort, *rpcURL, *contractAddr, *privKey, *committeeSize)
 
 	fmt.Println("Host created, ID:", h.ID())
-	ethAddr, err := utils.IdToEthAddress(h.ID())
-	if err != nil {
-		panic(err)
+	ethAddr := utils.IdToEthAddress(h.ID())
 
-	}
 	fmt.Println("Pub Addr:", ethAddr)
 
 	go client.Start(ctx, *topicName)

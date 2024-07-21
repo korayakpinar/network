@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum/go-ethereum/common"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -45,27 +46,7 @@ func SignTheHash(privKey string, hash []byte) ([]byte, error) {
 
 }
 
-func IdFromPubKey(pubKey string) (*peer.ID, error) {
-	publicKeyECDSA, err := ethCrypto.HexToECDSA(pubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	pubKeyBytes := ethCrypto.FromECDSAPub(&publicKeyECDSA.PublicKey)
-	pub, err := crypto.UnmarshalSecp256k1PublicKey(pubKeyBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := peer.IDFromPublicKey(pub)
-	if err != nil {
-		return nil, err
-	}
-
-	return &id, nil
-}
-
-func IdToEthAddress(id peer.ID) (string, error) {
+func IdToEthAddress(id peer.ID) (common.Address, error) {
 	pubKey, err := id.ExtractPublicKey()
 	if err != nil {
 		panic(err)
@@ -81,7 +62,7 @@ func IdToEthAddress(id peer.ID) (string, error) {
 		panic(err)
 	}
 
-	ethAddress := ethCrypto.PubkeyToAddress(*etherPubKey).Hex()
+	ethAddress := ethCrypto.PubkeyToAddress(*etherPubKey)
 	return ethAddress, nil
 }
 

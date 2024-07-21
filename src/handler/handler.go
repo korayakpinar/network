@@ -18,12 +18,10 @@ import (
 	"github.com/korayakpinar/network/src/types"
 	"github.com/korayakpinar/network/src/utils"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 )
 
 type Signer struct {
-	peerID  peer.ID
 	address common.Address
 	blsKey  []byte
 }
@@ -340,8 +338,12 @@ func (h *Handler) HandleTransaction(tx string) error {
 	return nil
 }
 
-func NewSigner(peerID peer.ID, address common.Address, blsKey []byte) Signer {
-	return Signer{peerID: peerID, address: address, blsKey: blsKey}
+func NewSigner(address common.Address, blsKey []byte) Signer {
+	return Signer{address: address, blsKey: blsKey}
+}
+
+func (s *Signer) GetAddress() common.Address {
+	return s.address
 }
 
 func (h *Handler) AddSigner(p Signer) {
@@ -356,6 +358,7 @@ func (h *Handler) GetSignerByIndex(index uint64) *Signer {
 	return &(*h.signers)[index]
 }
 
+/*
 func (h *Handler) IsSigner(p peer.ID) bool {
 	for _, pub := range *h.signers {
 		if pub.peerID == p {
@@ -364,6 +367,7 @@ func (h *Handler) IsSigner(p peer.ID) bool {
 	}
 	return false
 }
+*/
 
 func (h *Handler) Stop() {
 	h.sub.Cancel()

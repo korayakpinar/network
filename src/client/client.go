@@ -189,11 +189,6 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			log.Fatal(err)
 			return
 		}
-		signerPeerID, err := utils.IdFromPubKey(operator.Operator.Hex())
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
 
 		signerKeystore, err := contracts.NewBLSKeystore(operator.BLSPubKey, ethClient)
 		if err != nil {
@@ -207,7 +202,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		newSigner := handler.NewSigner(*signerPeerID, operator.Operator, signerKey)
+		newSigner := handler.NewSigner(operator.Operator, signerKey)
 		signers = append(signers, newSigner)
 	}
 
@@ -299,13 +294,16 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan chan error) (topic *pubsub.Topic) {
 
 	inspector := func(pid peer.ID, rpc *pubsub.RPC) error {
+		ethAddr := utils.IdToEthAddress(pid)
 
-		if cli.Handler.IsSigner(pid) {
-			return nil
-		} else {
-			return errors.New("not a operator")
+		signers := *cli.Handler.GetSigners()
+		for _, signer := range signers {
+			if signer.GetAddress() == ethAddr {
+				return nil
+			}
 		}
 
+		return errors.New("not a operator")
 	}
 
 	// Create a new PubSub service using the GossipSub router
