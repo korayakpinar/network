@@ -86,20 +86,29 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		return
 	}
 
-	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID) // 1 yerine doğru chain ID'yi kullanın
+	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID)
 	if err != nil {
 		return
 	}
 
-	tx, err := operatorsContract.RegisterOperator(auth)
+	registered, err := operatorsContract.IsRegistered(nil, auth.From)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-	log.Printf("Operator registered with tx: %s\n", tx.Hash().Hex())
 
-	// Wait for the operator to be registered
-	waitForTxConfirmation(ethClient, tx, 2)
+	if !registered {
+		tx, err := operatorsContract.RegisterOperator(auth)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		log.Printf("Operator registered with tx: %s\n", tx.Hash().Hex())
+
+		// Wait for the operator to be registered
+		waitForTxConfirmation(ethClient, tx, 2)
+	}
+	log.Println("Operator registered successfully or already registered")
 
 	ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
 	if err != nil {
@@ -107,55 +116,59 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		return
 	}
 
-	api := api.NewCrypto(cli.apiPort)
+	if key, _ := operatorsContract.GetBLSPubKey(nil, auth.From); key == nil {
 
-	// Get and deploy BLS Public Key
-	blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+		api := api.NewCrypto(cli.apiPort)
 
-	gasPrice, err := ethClient.SuggestGasPrice(context.Background())
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+		// Get and deploy BLS Public Key
+		blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
 
-	nonce, err := ethClient.PendingNonceAt(context.Background(), auth.From)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	auth.Nonce = big.NewInt(int64(nonce))
-	auth.Value = big.NewInt(0)
-	auth.GasLimit = 3000000
-	auth.GasPrice = gasPrice
+		gasPrice, err := ethClient.SuggestGasPrice(context.Background())
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
 
-	keystoreABI, err := contracts.BLSKeystoreMetaData.GetAbi()
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	keystoreAddr, tx, _, err := bind.DeployContract(auth, *keystoreABI, []byte(contracts.BLSKeystoreMetaData.Bin), ethClient, blsPubKey)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	log.Printf("Keystore deployed with tx: %s\n", tx.Hash().Hex())
+		nonce, err := ethClient.PendingNonceAt(context.Background(), auth.From)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		auth.Nonce = big.NewInt(int64(nonce + 1))
+		auth.Value = big.NewInt(0)
+		auth.GasLimit = 3000000
+		auth.GasPrice = gasPrice
 
-	// Wait for the keystore to be deployed
-	log.Printf("Waiting for keystore to be deployed...\n")
-	waitForTxConfirmation(ethClient, tx, 2)
+		keystoreABI, err := contracts.BLSKeystoreMetaData.GetAbi()
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		keystoreAddr, tx, _, err := bind.DeployContract(auth, *keystoreABI, []byte(contracts.BLSKeystoreMetaData.Bin), ethClient, blsPubKey)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		log.Printf("Keystore deployed with tx: %s\n", tx.Hash().Hex())
 
-	tx, err = operatorsContract.SubmitBLSPubKey(auth, keystoreAddr)
-	if err != nil {
-		log.Fatal(err)
-		return
+		// Wait for the keystore to be deployed
+		log.Printf("Waiting for keystore to be deployed...\n")
+		waitForTxConfirmation(ethClient, tx, 2)
+
+		tx, err = operatorsContract.SubmitBLSPubKey(auth, keystoreAddr)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		log.Printf("BLS Public Key submitted with tx: %s\n", tx.Hash().Hex())
+		log.Printf("Waiting for BLS Public Key to be submitted...\n")
+		waitForTxConfirmation(ethClient, tx, 2)
 	}
-	log.Printf("BLS Public Key submitted with tx: %s\n", tx.Hash().Hex())
-	log.Printf("Waiting for BLS Public Key to be submitted...\n")
-	waitForTxConfirmation(ethClient, tx, 2)
+	log.Println("BLS Public Key submitted successfully or already submitted")
 
 	var operatorCount *big.Int = big.NewInt(0)
 	for operatorCount.Int64() < int64(cli.committeeSize) {
@@ -181,7 +194,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		signerKeystore, err := contracts.NewBLSKeystore(keystoreAddr, ethClient)
+		signerKeystore, err := contracts.NewBLSKeystore(operator.BLSPubKey, ethClient)
 		if err != nil {
 			log.Fatal(err)
 			return
