@@ -46,7 +46,7 @@ func SignTheHash(privKey string, hash []byte) ([]byte, error) {
 
 }
 
-func IdToEthAddress(id peer.ID) (common.Address, error) {
+func IdToEthAddress(id peer.ID) common.Address {
 	pubKey, err := id.ExtractPublicKey()
 	if err != nil {
 		panic(err)
@@ -63,18 +63,7 @@ func IdToEthAddress(id peer.ID) (common.Address, error) {
 	}
 
 	ethAddress := ethCrypto.PubkeyToAddress(*etherPubKey)
-	return ethAddress, nil
-}
-
-func IsOperator(id peer.ID) bool {
-	addr, err := IdToEthAddress(id)
-	if err != nil {
-		panic(err)
-	}
-
-	// check if the address is staked enough amount
-	_ = (addr) // just to remove the error
-	return true
+	return ethAddress
 }
 
 func LoadConfig(path string) (Config, error) {
