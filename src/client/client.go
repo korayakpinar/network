@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -88,6 +89,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID)
 	if err != nil {
+		log.Fatal(err)
 		return
 	}
 
@@ -98,7 +100,9 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	}
 
 	if !registered {
-		tx, err := operatorsContract.RegisterOperator(auth)
+		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return operatorsContract.RegisterOperator(auth)
+		})
 		if err != nil {
 			log.Fatal(err)
 			return
@@ -117,7 +121,6 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	}
 
 	if key, _ := operatorsContract.GetBLSPubKey(nil, auth.From); key == nil {
-
 		api := api.NewCrypto(cli.apiPort)
 
 		// Get and deploy BLS Public Key
@@ -127,28 +130,18 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		gasPrice, err := ethClient.SuggestGasPrice(context.Background())
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-
-		nonce, err := ethClient.PendingNonceAt(context.Background(), auth.From)
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-		auth.Nonce = big.NewInt(int64(nonce + 1))
-		auth.Value = big.NewInt(0)
-		auth.GasLimit = 3000000
-		auth.GasPrice = gasPrice
-
 		keystoreABI, err := contracts.BLSKeystoreMetaData.GetAbi()
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
-		keystoreAddr, tx, _, err := bind.DeployContract(auth, *keystoreABI, []byte(contracts.BLSKeystoreMetaData.Bin), ethClient, blsPubKey)
+
+		var keystoreAddr common.Address
+		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			address, tx, _, err := bind.DeployContract(auth, *keystoreABI, []byte(contracts.BLSKeystoreMetaData.Bin), ethClient, blsPubKey)
+			keystoreAddr = address
+			return tx, err
+		})
 		if err != nil {
 			log.Fatal(err)
 			return
@@ -159,7 +152,9 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		log.Printf("Waiting for keystore to be deployed...\n")
 		waitForTxConfirmation(ethClient, tx, 2)
 
-		tx, err = operatorsContract.SubmitBLSPubKey(auth, keystoreAddr)
+		tx, err = executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return operatorsContract.SubmitBLSPubKey(auth, keystoreAddr)
+		})
 		if err != nil {
 			log.Fatal(err)
 			return
@@ -431,4 +426,49 @@ func waitForTxReceipt(client *ethclient.Client, ctx context.Context, txHash comm
 			continue
 		}
 	}
+}
+
+func executeTransactionWithRetry(
+	client *ethclient.Client,
+	auth *bind.TransactOpts,
+	txFunc func(*bind.TransactOpts) (*types.Transaction, error),
+) (*types.Transaction, error) {
+	var tx *types.Transaction
+	var err error
+
+	for i := 0; i < 5; i++ { // 5 tries
+		// Check the current nonce and set it in the auth
+		nonce, err := client.PendingNonceAt(context.Background(), auth.From)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get nonce: %v", err)
+		}
+		auth.Nonce = big.NewInt(int64(nonce))
+
+		// Take the suggested gas price
+		gasPrice, err := client.SuggestGasPrice(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get gas price: %v", err)
+		}
+
+		// Increase gas price by 10%
+		gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(110))
+		gasPrice = new(big.Int).Div(gasPrice, big.NewInt(100))
+		auth.GasPrice = gasPrice
+
+		// Call the transaction function
+		tx, err = txFunc(auth)
+		if err == nil {
+			return tx, nil
+		}
+
+		if !strings.Contains(err.Error(), "replacement transaction underpriced") &&
+			!strings.Contains(err.Error(), "nonce too low") {
+			return nil, err
+		}
+
+		log.Printf("Transaction failed, retrying with updated nonce and higher gas price... (Attempt %d)\n", i+1)
+		time.Sleep(time.Second * 2) // Kısa bir bekleme süresi
+	}
+
+	return nil, fmt.Errorf("failed to execute transaction after multiple attempts: %v", err)
 }
