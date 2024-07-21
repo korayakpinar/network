@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/korayakpinar/network/src/contracts"
+
 	api "github.com/korayakpinar/network/src/crypto"
 	"github.com/korayakpinar/network/src/handler"
 
@@ -100,8 +101,24 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	}
 
 	if !registered {
+
+		api := api.NewCrypto(cli.apiPort)
+
+		ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		// Get and deploy BLS Public Key
+		blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
 		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return operatorsContract.RegisterOperator(auth)
+			return operatorsContract.RegisterOperator(auth, blsPubKey)
 		})
 		if err != nil {
 			log.Fatal(err)
@@ -114,61 +131,6 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	}
 	log.Println("Operator registered successfully or already registered")
 
-	ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	operator, err := operatorsContract.Operators(nil, ourIndex)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	if operator.HasSubmittedKey == false {
-		api := api.NewCrypto(cli.apiPort)
-
-		// Get and deploy BLS Public Key
-		blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-
-		keystoreABI, err := contracts.BLSKeystoreMetaData.GetAbi()
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-
-		var keystoreAddr common.Address
-		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			address, tx, _, err := bind.DeployContract(auth, *keystoreABI, []byte(contracts.BLSKeystoreMetaData.Bin), ethClient, blsPubKey)
-			keystoreAddr = address
-			return tx, err
-		})
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-		log.Printf("Keystore deployed with tx: %s\n", tx.Hash().Hex())
-
-		// Wait for the keystore to be deployed
-		log.Printf("Waiting for keystore to be deployed...\n")
-		waitForTxConfirmation(ethClient, tx, 2)
-
-		tx, err = executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return operatorsContract.SubmitBLSPubKey(auth, keystoreAddr)
-		})
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-		log.Printf("BLS Public Key submitted with tx: %s\n", tx.Hash().Hex())
-		log.Printf("Waiting for BLS Public Key to be submitted...\n")
-		waitForTxConfirmation(ethClient, tx, 2)
-	}
 	log.Println("BLS Public Key submitted successfully or already submitted")
 
 	var operatorCount *big.Int = big.NewInt(0)
@@ -182,6 +144,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		time.Sleep(3 * time.Second)
 	}
 
+	var ourIndex *big.Int
 	var signers []handler.Signer
 	for i := 0; i < int(operatorCount.Int64()); i++ {
 		operator, err := operatorsContract.Operators(nil, big.NewInt(int64(i)))
@@ -190,18 +153,15 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		signerKeystore, err := contracts.NewBLSKeystore(operator.BLSPubKey, ethClient)
+		signerKey, err := operatorsContract.GetBLSPubKeyByIndex(nil, big.NewInt(int64(i)))
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
 
-		signerKey, err := signerKeystore.GetPubKey(nil)
-		if err != nil {
-			log.Fatal(err)
-			return
+		if operator.Operator == auth.From {
+			ourIndex = big.NewInt(int64(i))
 		}
-
 		newSigner := handler.NewSigner(operator.Operator, signerKey)
 		signers = append(signers, newSigner)
 	}
