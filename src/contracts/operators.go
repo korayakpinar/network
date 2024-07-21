@@ -31,7 +31,7 @@ var (
 
 // OperatorsMetaData contains all meta data concerning the Operators contract.
 var OperatorsMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"BLSPubKeyContractAddr\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"Operators\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"BLSPubKey\",\"type\":\"address\"},{\"internalType\":\"bool\",\"name\":\"hasSubmittedKey\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"getBLSPubKey\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getOperatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"getOperatorIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"isRegistered\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"registerOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"blsPubKey\",\"type\":\"address\"}],\"name\":\"submitBLSPubKey\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[],\"name\":\"GetOperatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"GetOperatorIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"IsRegistered\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"Operators\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"BLSPubKeyContract\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"getBLSPubKey\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"getBLSPubKeyByIndex\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"blsPubKey\",\"type\":\"bytes\"}],\"name\":\"registerOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // OperatorsABI is the input ABI used to generate the binding from.
@@ -180,60 +180,119 @@ func (_Operators *OperatorsTransactorRaw) Transact(opts *bind.TransactOpts, meth
 	return _Operators.Contract.contract.Transact(opts, method, params...)
 }
 
-// BLSPubKeyContractAddr is a free data retrieval call binding the contract method 0x28fc187b.
+// GetOperatorCount is a free data retrieval call binding the contract method 0x9a5c350d.
 //
-// Solidity: function BLSPubKeyContractAddr() view returns(address)
-func (_Operators *OperatorsCaller) BLSPubKeyContractAddr(opts *bind.CallOpts) (common.Address, error) {
+// Solidity: function GetOperatorCount() view returns(uint256)
+func (_Operators *OperatorsCaller) GetOperatorCount(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _Operators.contract.Call(opts, &out, "BLSPubKeyContractAddr")
+	err := _Operators.contract.Call(opts, &out, "GetOperatorCount")
 
 	if err != nil {
-		return *new(common.Address), err
+		return *new(*big.Int), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 
 	return out0, err
 
 }
 
-// BLSPubKeyContractAddr is a free data retrieval call binding the contract method 0x28fc187b.
+// GetOperatorCount is a free data retrieval call binding the contract method 0x9a5c350d.
 //
-// Solidity: function BLSPubKeyContractAddr() view returns(address)
-func (_Operators *OperatorsSession) BLSPubKeyContractAddr() (common.Address, error) {
-	return _Operators.Contract.BLSPubKeyContractAddr(&_Operators.CallOpts)
+// Solidity: function GetOperatorCount() view returns(uint256)
+func (_Operators *OperatorsSession) GetOperatorCount() (*big.Int, error) {
+	return _Operators.Contract.GetOperatorCount(&_Operators.CallOpts)
 }
 
-// BLSPubKeyContractAddr is a free data retrieval call binding the contract method 0x28fc187b.
+// GetOperatorCount is a free data retrieval call binding the contract method 0x9a5c350d.
 //
-// Solidity: function BLSPubKeyContractAddr() view returns(address)
-func (_Operators *OperatorsCallerSession) BLSPubKeyContractAddr() (common.Address, error) {
-	return _Operators.Contract.BLSPubKeyContractAddr(&_Operators.CallOpts)
+// Solidity: function GetOperatorCount() view returns(uint256)
+func (_Operators *OperatorsCallerSession) GetOperatorCount() (*big.Int, error) {
+	return _Operators.Contract.GetOperatorCount(&_Operators.CallOpts)
+}
+
+// GetOperatorIndex is a free data retrieval call binding the contract method 0x90748cc8.
+//
+// Solidity: function GetOperatorIndex(address operatorAddress) view returns(uint256)
+func (_Operators *OperatorsCaller) GetOperatorIndex(opts *bind.CallOpts, operatorAddress common.Address) (*big.Int, error) {
+	var out []interface{}
+	err := _Operators.contract.Call(opts, &out, "GetOperatorIndex", operatorAddress)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetOperatorIndex is a free data retrieval call binding the contract method 0x90748cc8.
+//
+// Solidity: function GetOperatorIndex(address operatorAddress) view returns(uint256)
+func (_Operators *OperatorsSession) GetOperatorIndex(operatorAddress common.Address) (*big.Int, error) {
+	return _Operators.Contract.GetOperatorIndex(&_Operators.CallOpts, operatorAddress)
+}
+
+// GetOperatorIndex is a free data retrieval call binding the contract method 0x90748cc8.
+//
+// Solidity: function GetOperatorIndex(address operatorAddress) view returns(uint256)
+func (_Operators *OperatorsCallerSession) GetOperatorIndex(operatorAddress common.Address) (*big.Int, error) {
+	return _Operators.Contract.GetOperatorIndex(&_Operators.CallOpts, operatorAddress)
+}
+
+// IsRegistered is a free data retrieval call binding the contract method 0xc224122d.
+//
+// Solidity: function IsRegistered(address operatorAddress) view returns(bool)
+func (_Operators *OperatorsCaller) IsRegistered(opts *bind.CallOpts, operatorAddress common.Address) (bool, error) {
+	var out []interface{}
+	err := _Operators.contract.Call(opts, &out, "IsRegistered", operatorAddress)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// IsRegistered is a free data retrieval call binding the contract method 0xc224122d.
+//
+// Solidity: function IsRegistered(address operatorAddress) view returns(bool)
+func (_Operators *OperatorsSession) IsRegistered(operatorAddress common.Address) (bool, error) {
+	return _Operators.Contract.IsRegistered(&_Operators.CallOpts, operatorAddress)
+}
+
+// IsRegistered is a free data retrieval call binding the contract method 0xc224122d.
+//
+// Solidity: function IsRegistered(address operatorAddress) view returns(bool)
+func (_Operators *OperatorsCallerSession) IsRegistered(operatorAddress common.Address) (bool, error) {
+	return _Operators.Contract.IsRegistered(&_Operators.CallOpts, operatorAddress)
 }
 
 // Operators is a free data retrieval call binding the contract method 0x6acbb296.
 //
-// Solidity: function Operators(uint256 ) view returns(address operator, address BLSPubKey, bool hasSubmittedKey)
+// Solidity: function Operators(uint256 ) view returns(address operator, address BLSPubKeyContract)
 func (_Operators *OperatorsCaller) Operators(opts *bind.CallOpts, arg0 *big.Int) (struct {
-	Operator        common.Address
-	BLSPubKey       common.Address
-	HasSubmittedKey bool
+	Operator          common.Address
+	BLSPubKeyContract common.Address
 }, error) {
 	var out []interface{}
 	err := _Operators.contract.Call(opts, &out, "Operators", arg0)
 
 	outstruct := new(struct {
-		Operator        common.Address
-		BLSPubKey       common.Address
-		HasSubmittedKey bool
+		Operator          common.Address
+		BLSPubKeyContract common.Address
 	})
 	if err != nil {
 		return *outstruct, err
 	}
 
 	outstruct.Operator = *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-	outstruct.BLSPubKey = *abi.ConvertType(out[1], new(common.Address)).(*common.Address)
-	outstruct.HasSubmittedKey = *abi.ConvertType(out[2], new(bool)).(*bool)
+	outstruct.BLSPubKeyContract = *abi.ConvertType(out[1], new(common.Address)).(*common.Address)
 
 	return *outstruct, err
 
@@ -241,22 +300,20 @@ func (_Operators *OperatorsCaller) Operators(opts *bind.CallOpts, arg0 *big.Int)
 
 // Operators is a free data retrieval call binding the contract method 0x6acbb296.
 //
-// Solidity: function Operators(uint256 ) view returns(address operator, address BLSPubKey, bool hasSubmittedKey)
+// Solidity: function Operators(uint256 ) view returns(address operator, address BLSPubKeyContract)
 func (_Operators *OperatorsSession) Operators(arg0 *big.Int) (struct {
-	Operator        common.Address
-	BLSPubKey       common.Address
-	HasSubmittedKey bool
+	Operator          common.Address
+	BLSPubKeyContract common.Address
 }, error) {
 	return _Operators.Contract.Operators(&_Operators.CallOpts, arg0)
 }
 
 // Operators is a free data retrieval call binding the contract method 0x6acbb296.
 //
-// Solidity: function Operators(uint256 ) view returns(address operator, address BLSPubKey, bool hasSubmittedKey)
+// Solidity: function Operators(uint256 ) view returns(address operator, address BLSPubKeyContract)
 func (_Operators *OperatorsCallerSession) Operators(arg0 *big.Int) (struct {
-	Operator        common.Address
-	BLSPubKey       common.Address
-	HasSubmittedKey bool
+	Operator          common.Address
+	BLSPubKeyContract common.Address
 }, error) {
 	return _Operators.Contract.Operators(&_Operators.CallOpts, arg0)
 }
@@ -292,137 +349,54 @@ func (_Operators *OperatorsCallerSession) GetBLSPubKey(operatorAddress common.Ad
 	return _Operators.Contract.GetBLSPubKey(&_Operators.CallOpts, operatorAddress)
 }
 
-// GetOperatorCount is a free data retrieval call binding the contract method 0x1a4a7c61.
+// GetBLSPubKeyByIndex is a free data retrieval call binding the contract method 0x47c6615c.
 //
-// Solidity: function getOperatorCount() view returns(uint256)
-func (_Operators *OperatorsCaller) GetOperatorCount(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function getBLSPubKeyByIndex(uint256 index) view returns(bytes)
+func (_Operators *OperatorsCaller) GetBLSPubKeyByIndex(opts *bind.CallOpts, index *big.Int) ([]byte, error) {
 	var out []interface{}
-	err := _Operators.contract.Call(opts, &out, "getOperatorCount")
+	err := _Operators.contract.Call(opts, &out, "getBLSPubKeyByIndex", index)
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new([]byte), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
 
 	return out0, err
 
 }
 
-// GetOperatorCount is a free data retrieval call binding the contract method 0x1a4a7c61.
+// GetBLSPubKeyByIndex is a free data retrieval call binding the contract method 0x47c6615c.
 //
-// Solidity: function getOperatorCount() view returns(uint256)
-func (_Operators *OperatorsSession) GetOperatorCount() (*big.Int, error) {
-	return _Operators.Contract.GetOperatorCount(&_Operators.CallOpts)
+// Solidity: function getBLSPubKeyByIndex(uint256 index) view returns(bytes)
+func (_Operators *OperatorsSession) GetBLSPubKeyByIndex(index *big.Int) ([]byte, error) {
+	return _Operators.Contract.GetBLSPubKeyByIndex(&_Operators.CallOpts, index)
 }
 
-// GetOperatorCount is a free data retrieval call binding the contract method 0x1a4a7c61.
+// GetBLSPubKeyByIndex is a free data retrieval call binding the contract method 0x47c6615c.
 //
-// Solidity: function getOperatorCount() view returns(uint256)
-func (_Operators *OperatorsCallerSession) GetOperatorCount() (*big.Int, error) {
-	return _Operators.Contract.GetOperatorCount(&_Operators.CallOpts)
+// Solidity: function getBLSPubKeyByIndex(uint256 index) view returns(bytes)
+func (_Operators *OperatorsCallerSession) GetBLSPubKeyByIndex(index *big.Int) ([]byte, error) {
+	return _Operators.Contract.GetBLSPubKeyByIndex(&_Operators.CallOpts, index)
 }
 
-// GetOperatorIndex is a free data retrieval call binding the contract method 0x6a400fe7.
+// RegisterOperator is a paid mutator transaction binding the contract method 0x8231b54c.
 //
-// Solidity: function getOperatorIndex(address operatorAddress) view returns(uint256)
-func (_Operators *OperatorsCaller) GetOperatorIndex(opts *bind.CallOpts, operatorAddress common.Address) (*big.Int, error) {
-	var out []interface{}
-	err := _Operators.contract.Call(opts, &out, "getOperatorIndex", operatorAddress)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
+// Solidity: function registerOperator(bytes blsPubKey) returns()
+func (_Operators *OperatorsTransactor) RegisterOperator(opts *bind.TransactOpts, blsPubKey []byte) (*types.Transaction, error) {
+	return _Operators.contract.Transact(opts, "registerOperator", blsPubKey)
 }
 
-// GetOperatorIndex is a free data retrieval call binding the contract method 0x6a400fe7.
+// RegisterOperator is a paid mutator transaction binding the contract method 0x8231b54c.
 //
-// Solidity: function getOperatorIndex(address operatorAddress) view returns(uint256)
-func (_Operators *OperatorsSession) GetOperatorIndex(operatorAddress common.Address) (*big.Int, error) {
-	return _Operators.Contract.GetOperatorIndex(&_Operators.CallOpts, operatorAddress)
+// Solidity: function registerOperator(bytes blsPubKey) returns()
+func (_Operators *OperatorsSession) RegisterOperator(blsPubKey []byte) (*types.Transaction, error) {
+	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts, blsPubKey)
 }
 
-// GetOperatorIndex is a free data retrieval call binding the contract method 0x6a400fe7.
+// RegisterOperator is a paid mutator transaction binding the contract method 0x8231b54c.
 //
-// Solidity: function getOperatorIndex(address operatorAddress) view returns(uint256)
-func (_Operators *OperatorsCallerSession) GetOperatorIndex(operatorAddress common.Address) (*big.Int, error) {
-	return _Operators.Contract.GetOperatorIndex(&_Operators.CallOpts, operatorAddress)
-}
-
-// IsRegistered is a free data retrieval call binding the contract method 0xc3c5a547.
-//
-// Solidity: function isRegistered(address ) view returns(bool)
-func (_Operators *OperatorsCaller) IsRegistered(opts *bind.CallOpts, arg0 common.Address) (bool, error) {
-	var out []interface{}
-	err := _Operators.contract.Call(opts, &out, "isRegistered", arg0)
-
-	if err != nil {
-		return *new(bool), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
-
-	return out0, err
-
-}
-
-// IsRegistered is a free data retrieval call binding the contract method 0xc3c5a547.
-//
-// Solidity: function isRegistered(address ) view returns(bool)
-func (_Operators *OperatorsSession) IsRegistered(arg0 common.Address) (bool, error) {
-	return _Operators.Contract.IsRegistered(&_Operators.CallOpts, arg0)
-}
-
-// IsRegistered is a free data retrieval call binding the contract method 0xc3c5a547.
-//
-// Solidity: function isRegistered(address ) view returns(bool)
-func (_Operators *OperatorsCallerSession) IsRegistered(arg0 common.Address) (bool, error) {
-	return _Operators.Contract.IsRegistered(&_Operators.CallOpts, arg0)
-}
-
-// RegisterOperator is a paid mutator transaction binding the contract method 0x2acde098.
-//
-// Solidity: function registerOperator() returns()
-func (_Operators *OperatorsTransactor) RegisterOperator(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _Operators.contract.Transact(opts, "registerOperator")
-}
-
-// RegisterOperator is a paid mutator transaction binding the contract method 0x2acde098.
-//
-// Solidity: function registerOperator() returns()
-func (_Operators *OperatorsSession) RegisterOperator() (*types.Transaction, error) {
-	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts)
-}
-
-// RegisterOperator is a paid mutator transaction binding the contract method 0x2acde098.
-//
-// Solidity: function registerOperator() returns()
-func (_Operators *OperatorsTransactorSession) RegisterOperator() (*types.Transaction, error) {
-	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts)
-}
-
-// SubmitBLSPubKey is a paid mutator transaction binding the contract method 0xd1dcff79.
-//
-// Solidity: function submitBLSPubKey(address blsPubKey) returns()
-func (_Operators *OperatorsTransactor) SubmitBLSPubKey(opts *bind.TransactOpts, blsPubKey common.Address) (*types.Transaction, error) {
-	return _Operators.contract.Transact(opts, "submitBLSPubKey", blsPubKey)
-}
-
-// SubmitBLSPubKey is a paid mutator transaction binding the contract method 0xd1dcff79.
-//
-// Solidity: function submitBLSPubKey(address blsPubKey) returns()
-func (_Operators *OperatorsSession) SubmitBLSPubKey(blsPubKey common.Address) (*types.Transaction, error) {
-	return _Operators.Contract.SubmitBLSPubKey(&_Operators.TransactOpts, blsPubKey)
-}
-
-// SubmitBLSPubKey is a paid mutator transaction binding the contract method 0xd1dcff79.
-//
-// Solidity: function submitBLSPubKey(address blsPubKey) returns()
-func (_Operators *OperatorsTransactorSession) SubmitBLSPubKey(blsPubKey common.Address) (*types.Transaction, error) {
-	return _Operators.Contract.SubmitBLSPubKey(&_Operators.TransactOpts, blsPubKey)
+// Solidity: function registerOperator(bytes blsPubKey) returns()
+func (_Operators *OperatorsTransactorSession) RegisterOperator(blsPubKey []byte) (*types.Transaction, error) {
+	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts, blsPubKey)
 }
