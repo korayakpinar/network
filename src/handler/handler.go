@@ -86,7 +86,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 
 func (h *Handler) performLeaderDuties(ctx context.Context) error {
 	log.Println("Performing leader duties")
-	encTxs := h.mempool.GetTransactions()
+	encTxs := h.mempool.GetEncryptedTransactions()
 	if len(encTxs) == 0 {
 		log.Println("No transactions to submit")
 		return nil
@@ -249,13 +249,7 @@ func (h *Handler) handleEncryptedTransaction(msg *message.Message) error {
 		},
 	}
 	log.Printf("Encrypted transaction received: %s", encTx.Header.Hash)
-	log.Println("Threshold number of message: ", encTx.Body.Threshold)
 	h.mempool.AddEncryptedTx(encTx)
-	if h.mempool.GetTransaction(encTx.Header.Hash) == nil {
-		log.Printf("Transaction not found in the mempool: %s", encTx.Header.Hash)
-	}
-	h.mempool.GetTransaction(encTx.Header.Hash)
-
 	return nil
 }
 
@@ -268,7 +262,7 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 
 	if h.mempool.GetPartialDecryptionCount(txHash) >= 2 /* h.mempool.GetThreshold(txHash) == h.mempool.GetPartialDecryptionCount(txHash) */ {
 		log.Printf("All partial decryptions received for: %s", txHash)
-		encTx := h.mempool.GetTransaction(txHash)
+		encTx := h.mempool.GetEncryptedTransaction(txHash)
 		encryptedContent := encTx.Body.EncText
 
 		content, err := h.crypto.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
@@ -352,7 +346,6 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 		encBatch.Body.EncTxs = append(encBatch.Body.EncTxs, newTx)
 	}
 
-	h.mempool.RemoveTransactions(txHashes)
 	*leaderIndex++
 	*leaderIndex %= CommitteSize
 	log.Printf("New leader index: %d", *leaderIndex)
