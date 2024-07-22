@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/korayakpinar/network/src/crypto"
@@ -48,219 +50,332 @@ func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, signers *[]Signer
 }
 
 func (h *Handler) Start(ctx context.Context, errChan chan error) {
+	log.Println("Starting the handler")
 	var leaderIndex uint64 = 0
 	var ourIndex uint64 = h.ourIndex
 	var CommitteSize uint64 = h.committeeSize
 
-	go func() {
-		if h.ourIndex == leaderIndex {
-			// Leader
-			// Submit a encrypted batch
-			encTxs := h.mempool.GetTransactions()
-			txHeaders := []*types.EncryptedTxHeader{}
-			for _, tx := range encTxs {
-				txHeaders = append(txHeaders, tx.Header)
-			}
+	log.Printf("Initial state: ourIndex=%d, leaderIndex=%d, CommitteSize=%d", ourIndex, leaderIndex, CommitteSize)
 
-			encBatchBody := &types.BatchBody{
-				EncTxs: txHeaders,
+	go h.leaderRoutine(ctx, errChan, &leaderIndex, ourIndex, CommitteSize)
+	go h.messageHandlingRoutine(ctx, errChan, &leaderIndex, ourIndex, CommitteSize)
+
+	log.Println("Handler started successfully")
+}
+
+func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64, ourIndex, CommitteSize uint64) {
+	log.Println("Starting leader routine")
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Context cancelled, stopping leader routine")
+			return
+		default:
+			log.Printf("Leader check: ourIndex=%d, leaderIndex=%d", ourIndex, *leaderIndex)
+			if ourIndex == *leaderIndex {
+				if err := h.performLeaderDuties(ctx); err != nil {
+					log.Printf("Error performing leader duties: %v", err)
+					errChan <- err
+					return
+				}
 			}
-			hashDigest := fmt.Sprintf("%x", sha256.Sum256(encBatchBody.Bytes()))
-			sig, err := utils.SignTheHash(h.privKey, []byte(hashDigest))
-			if err != nil {
+			time.Sleep(time.Second) // Prevent tight loop
+		}
+	}
+}
+
+func (h *Handler) performLeaderDuties(ctx context.Context) error {
+	log.Println("Performing leader duties")
+	encTxs := h.mempool.GetTransactions()
+	if len(encTxs) == 0 {
+		log.Println("No transactions to submit")
+		return nil
+	}
+	log.Printf("Preparing to submit %d transactions", len(encTxs))
+
+	encBatch, err := h.prepareEncryptedBatch(encTxs)
+	if err != nil {
+		return fmt.Errorf("failed to prepare encrypted batch: %w", err)
+	}
+
+	time.Sleep(5 * time.Second) // Wait for other nodes to prepare partial decryptions
+	if err := h.publishEncryptedBatch(ctx, encBatch); err != nil {
+		return fmt.Errorf("failed to publish encrypted batch: %w", err)
+	}
+
+	log.Println("Leader duties completed successfully")
+	return nil
+}
+
+func (h *Handler) prepareEncryptedBatch(encTxs []*types.EncryptedTransaction) (*types.EncryptedBatch, error) {
+	log.Println("Preparing encrypted batch")
+	txHeaders := []*types.EncryptedTxHeader{}
+	for _, tx := range encTxs {
+		txHeaders = append(txHeaders, tx.Header)
+	}
+
+	encBatchBody := &types.BatchBody{
+		EncTxs: txHeaders,
+	}
+
+	hashBytes := sha256.Sum256(encBatchBody.Bytes())
+	hashDigest := hashBytes[:] // Bu, 32 byte uzunluğunda bir []byte olacak
+
+	sig, err := utils.SignTheHash(h.privKey, hashDigest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign batch: %w", err)
+	}
+
+	encBatchHeader := &types.BatchHeader{
+		LeaderID:  h.ourIndex,
+		BlockNum:  0,
+		Hash:      hex.EncodeToString(hashDigest),
+		Signature: hex.EncodeToString(sig),
+	}
+
+	encBatch := &types.EncryptedBatch{
+		Header: encBatchHeader,
+		Body:   encBatchBody,
+	}
+
+	log.Println("Encrypted batch prepared successfully")
+	return encBatch, nil
+}
+
+func (h *Handler) publishEncryptedBatch(ctx context.Context, encBatch *types.EncryptedBatch) error {
+	log.Println("Publishing encrypted batch")
+	msg := &message.Message{
+		MessageType: message.MessageType_ENCRYPTED_BATCH,
+		Message: &message.Message_EncryptedBatch{
+			EncryptedBatch: &message.EncryptedBatch{
+				Header: &message.BatchHeader{
+					LeaderID:  encBatch.Header.LeaderID,
+					BlockNum:  encBatch.Header.BlockNum,
+					Hash:      encBatch.Header.Hash,
+					Signature: encBatch.Header.Signature,
+				},
+				Body: &message.BatchBody{
+					Transactions: []*message.TransactionHeader{},
+				},
+			},
+		},
+	}
+
+	for _, tx := range encBatch.Body.EncTxs {
+		msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch.Body.Transactions = append(
+			msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch.Body.Transactions,
+			&message.TransactionHeader{
+				Hash:    string(tx.Hash),
+				GammaG2: tx.GammaG2,
+				PkIDs:   tx.PkIDs,
+			},
+		)
+	}
+
+	msgBytes, err := proto.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	err = h.topic.Publish(ctx, msgBytes)
+	if err != nil {
+		return fmt.Errorf("failed to publish message: %w", err)
+	}
+
+	log.Println("Encrypted batch published successfully")
+	return nil
+}
+
+func (h *Handler) messageHandlingRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64, ourIndex, CommitteSize uint64) {
+	log.Println("Starting message handling routine")
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Context cancelled, stopping message handling routine")
+			return
+		default:
+			if err := h.handleNextMessage(ctx, leaderIndex, ourIndex, CommitteSize); err != nil {
+				log.Printf("Error handling message: %v", err)
 				errChan <- err
 				return
 			}
+		}
+	}
+}
 
-			encBatchHeader := &types.BatchHeader{
-				LeaderID:  leaderIndex,
-				BlockNum:  0,
-				Hash:      hashDigest,
-				Signature: string(sig),
+func (h *Handler) handleNextMessage(ctx context.Context, leaderIndex *uint64, ourIndex, CommitteSize uint64) error {
+	log.Println("Waiting for next message")
+	msg, err := h.sub.Next(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get next message: %w", err)
+	}
+
+	newMsg := &message.Message{}
+	if err := proto.Unmarshal(msg.Data, newMsg); err != nil {
+		return fmt.Errorf("failed to unmarshal message: %w", err)
+	}
+
+	log.Printf("Received message of type: %s", newMsg.MessageType)
+	switch newMsg.MessageType {
+	case message.MessageType_ENCRYPTED_TRANSACTION:
+		return h.handleEncryptedTransaction(newMsg)
+	case message.MessageType_PARTIAL_DECRYPTION:
+		return h.handlePartialDecryption(newMsg, *leaderIndex, CommitteSize)
+	case message.MessageType_ENCRYPTED_BATCH:
+		return h.handleEncryptedBatch(ctx, newMsg, leaderIndex, ourIndex, CommitteSize)
+	case message.MessageType_ORDER_SIGNATURE:
+		return h.handleOrderSignature(newMsg)
+	default:
+		log.Printf("Unknown message type: %s", newMsg.MessageType)
+	}
+	return nil
+}
+
+func (h *Handler) handleEncryptedTransaction(msg *message.Message) error {
+	log.Println("Handling encrypted transaction")
+	encTxMsg := msg.Message.(*message.Message_EncryptedTransaction).EncryptedTransaction
+	encTx := &types.EncryptedTransaction{
+		Header: &types.EncryptedTxHeader{
+			Hash:    string(encTxMsg.Header.Hash),
+			GammaG2: encTxMsg.Header.GammaG2,
+			PkIDs:   encTxMsg.Header.PkIDs,
+		},
+		Body: &types.EncryptedTxBody{
+			Sa1:       encTxMsg.Body.Sa1,
+			Sa2:       encTxMsg.Body.Sa2,
+			Iv:        encTxMsg.Body.Iv,
+			EncText:   encTxMsg.Body.EncText,
+			Threshold: encTxMsg.Body.T,
+		},
+	}
+	log.Printf("Encrypted transaction received: %s", encTx.Header.Hash)
+	log.Println("Threshold number of message: ", encTx.Body.Threshold)
+	h.mempool.AddEncryptedTx(encTx)
+	if h.mempool.GetTransaction(encTx.Header.Hash) == nil {
+		log.Printf("Transaction not found in the mempool: %s", encTx.Header.Hash)
+	}
+	h.mempool.GetTransaction(encTx.Header.Hash)
+
+	return nil
+}
+
+func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint64, CommitteSize uint64) error {
+	log.Println("Handling partial decryption")
+	partDecMsg := msg.Message.(*message.Message_PartialDecryption).PartialDecryption
+	partDec := partDecMsg.PartDec
+	txHash := partDecMsg.TxHash
+	h.mempool.AddPartialDecryption(txHash, &partDec)
+
+	if h.mempool.GetPartialDecryptionCount(txHash) >= 2 /* h.mempool.GetThreshold(txHash) == h.mempool.GetPartialDecryptionCount(txHash) */ {
+		log.Printf("All partial decryptions received for: %s", txHash)
+		encTx := h.mempool.GetTransaction(txHash)
+		encryptedContent := encTx.Body.EncText
+
+		content, err := h.crypto.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt transaction: %w", err)
+		}
+		h.mempool.AddDecryptedTx(&types.DecryptedTransaction{
+			Header: &types.DecryptedTxHeader{
+				Hash:  txHash,
+				PkIDs: encTx.Header.PkIDs,
+			},
+			Body: &types.DecryptedTxBody{
+				Content: string(content),
+			},
+		})
+		log.Printf("Transaction decrypted: %s", txHash)
+		log.Printf("Our index: %d, Leader index: %d", h.ourIndex, leaderIndex)
+		if h.ourIndex == leaderIndex-1 || leaderIndex == h.ourIndex {
+			tx, err := sendRawTransaction(h.rpcUrl, string(content))
+			if err != nil {
+				return fmt.Errorf("failed to send transaction to blockchain: %w", err)
+			}
+			log.Printf("Transaction sent to the blockchain: %s", tx)
+		}
+	}
+	return nil
+}
+
+func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message, leaderIndex *uint64, ourIndex, CommitteSize uint64) error {
+	log.Println("Handling encrypted batch")
+	encBatchMsg := msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch
+
+	if encBatchMsg.Header.LeaderID != *leaderIndex {
+		log.Printf("Ignoring batch from non-leader (received: %d, expected: %d)", encBatchMsg.Header.LeaderID, *leaderIndex)
+		return nil
+	}
+
+	encBatch := &types.EncryptedBatch{
+		Header: &types.BatchHeader{
+			LeaderID:  encBatchMsg.Header.LeaderID,
+			BlockNum:  encBatchMsg.Header.BlockNum,
+			Hash:      encBatchMsg.Header.Hash,
+			Signature: encBatchMsg.Header.Signature,
+		},
+		Body: &types.BatchBody{
+			EncTxs: []*types.EncryptedTxHeader{},
+		},
+	}
+	var txHashes []string
+	for _, encTx := range encBatchMsg.Body.Transactions {
+		txHashes = append(txHashes, string(encTx.Hash))
+		if slices.Contains(encTx.PkIDs, ourIndex) {
+			partDec, err := h.crypto.PartialDecrypt(encTx.GammaG2)
+			if err != nil {
+				return fmt.Errorf("failed to partially decrypt transaction: %w", err)
 			}
 
-			encBatch := &types.EncryptedBatch{
-				Header: encBatchHeader,
-				Body:   encBatchBody,
-			}
-
-			msg := &message.Message{
-				Message: &message.Message_EncryptedBatch{
-					EncryptedBatch: &message.EncryptedBatch{
-						Header: &message.BatchHeader{
-							LeaderID:  encBatch.Header.LeaderID,
-							BlockNum:  encBatch.Header.BlockNum,
-							Hash:      encBatch.Header.Hash,
-							Signature: encBatch.Header.Signature,
-						},
-						Body: &message.BatchBody{
-							Transactions: []*message.TransactionHeader{},
-						},
+			newMessage := &message.Message{
+				Message: &message.Message_PartialDecryption{
+					PartialDecryption: &message.PartialDecryption{
+						TxHash:  encTx.Hash,
+						PartDec: partDec,
 					},
 				},
+				MessageType: message.MessageType_PARTIAL_DECRYPTION,
 			}
 
-			msgBytes, err := proto.Marshal(msg)
+			msgBytes, err := proto.Marshal(newMessage)
 			if err != nil {
-				errChan <- err
-				return
+				return fmt.Errorf("failed to marshal partial decryption message: %w", err)
 			}
-
 			err = h.topic.Publish(ctx, msgBytes)
 			if err != nil {
-				errChan <- err
-				return
+				return fmt.Errorf("failed to publish partial decryption message: %w", err)
 			}
-
 		}
-	}()
-	go func() {
-		for {
-
-			msg, err := h.sub.Next(ctx)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			// Deserialize the proto message
-			newMsg := &message.Message{}
-			err = proto.Unmarshal(msg.Data, newMsg)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			switch newMsg.MessageType {
-			case message.MessageType_ENCRYPTED_TRANSACTION:
-				encTxMsg := newMsg.Message.(*message.Message_EncryptedTransaction).EncryptedTransaction
-				encTx := &types.EncryptedTransaction{
-					Header: &types.EncryptedTxHeader{
-						Hash:    string(encTxMsg.Header.Hash),
-						GammaG2: encTxMsg.Header.GammaG2,
-						PkIDs:   encTxMsg.Header.PkIDs,
-					},
-					Body: &types.EncryptedTxBody{
-						Sa1:       encTxMsg.Body.Sa1,
-						Sa2:       encTxMsg.Body.Sa2,
-						Iv:        encTxMsg.Body.Iv,
-						EncText:   encTxMsg.Body.EncText,
-						Threshold: encTxMsg.Body.T,
-					},
-				}
-				h.mempool.AddEncryptedTx(encTx)
-
-			case message.MessageType_PARTIAL_DECRYPTION:
-				partDecMsg := newMsg.Message.(*message.Message_PartialDecryption).PartialDecryption
-				partDec := partDecMsg.PartDec
-				txHash := partDecMsg.TxHash
-				h.mempool.AddPartialDecryption(txHash, &partDec)
-				if h.mempool.GetThreshold(txHash) == h.mempool.GetPartialDecryptionCount(txHash) {
-					encTx := h.mempool.GetTransaction(txHash)
-					encryptedContent := encTx.Body.EncText
-
-					content, err := h.crypto.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
-					if err != nil {
-						errChan <- err
-						return
-					}
-					h.mempool.AddDecryptedTx(&types.DecryptedTransaction{
-						Header: &types.DecryptedTxHeader{
-							Hash:  txHash,
-							PkIDs: encTx.Header.PkIDs,
-						},
-						Body: &types.DecryptedTxBody{
-							Content: string(content),
-						},
-					})
-					if h.ourIndex == leaderIndex {
-						tx, err := sendRawTransaction(h.rpcUrl, string(content))
-						if err != nil {
-							errChan <- err
-							return
-						}
-						fmt.Println("Transaction sent to the blockchain: ", tx)
-					}
-				}
-			case message.MessageType_ENCRYPTED_BATCH:
-				encBatchMsg := newMsg.Message.(*message.Message_EncryptedBatch).EncryptedBatch
-
-				if encBatchMsg.Header.LeaderID != leaderIndex {
-					continue // Ignore the message
-				}
-
-				encBatch := &types.EncryptedBatch{
-					Header: &types.BatchHeader{
-						LeaderID:  encBatchMsg.Header.LeaderID,
-						BlockNum:  encBatchMsg.Header.BlockNum,
-						Hash:      encBatchMsg.Header.Hash,
-						Signature: encBatchMsg.Header.Signature,
-					},
-					Body: &types.BatchBody{
-						EncTxs: []*types.EncryptedTxHeader{},
-					},
-				}
-				var txHashes []string
-				for _, encTx := range encBatchMsg.Body.Transactions {
-					txHashes = append(txHashes, string(encTx.Hash))
-					if slices.Contains(encTx.PkIDs, ourIndex) {
-						partDec, err := h.crypto.PartialDecrypt(encTx.GammaG2)
-						if err != nil {
-							errChan <- err
-							return
-						}
-
-						newMessage := &message.Message{
-							Message: &message.Message_PartialDecryption{
-								PartialDecryption: &message.PartialDecryption{
-									TxHash:  encTx.Hash,
-									PartDec: partDec,
-								},
-							},
-						}
-
-						msgBytes, err := proto.Marshal(newMessage)
-						if err != nil {
-							errChan <- err
-							return
-						}
-						err = h.topic.Publish(ctx, msgBytes)
-						if err != nil {
-							errChan <- err
-							return
-						}
-					}
-					newTx := &types.EncryptedTxHeader{
-						Hash:    string(encTx.Hash),
-						GammaG2: encTx.GammaG2,
-					}
-					encBatch.Body.EncTxs = append(encBatch.Body.EncTxs, newTx)
-
-				}
-
-				h.mempool.RemoveTransactions(txHashes)
-				leaderIndex++
-				leaderIndex %= CommitteSize
-			case message.MessageType_ORDER_SIGNATURE:
-				orderSigMsg := newMsg.Message.(*message.Message_OrderSignature).OrderSignature
-				orderSig := &types.OrderSig{
-					Signature: orderSigMsg.Signature,
-					TxHeaders: []*types.EncryptedTxHeader{},
-				}
-				for _, tx := range orderSigMsg.Order {
-					newTx := &types.EncryptedTxHeader{
-						Hash:    string(tx.Hash),
-						GammaG2: tx.GammaG2,
-					}
-					orderSig.TxHeaders = append(orderSig.TxHeaders, newTx)
-				}
-				h.mempool.AddOrderSig(orderSigMsg.BlockNum, *orderSig)
-
-			}
-
+		newTx := &types.EncryptedTxHeader{
+			Hash:    string(encTx.Hash),
+			GammaG2: encTx.GammaG2,
 		}
-	}()
+		encBatch.Body.EncTxs = append(encBatch.Body.EncTxs, newTx)
+	}
 
+	h.mempool.RemoveTransactions(txHashes)
+	*leaderIndex++
+	*leaderIndex %= CommitteSize
+	log.Printf("New leader index: %d", *leaderIndex)
+	return nil
+}
+
+func (h *Handler) handleOrderSignature(msg *message.Message) error {
+	log.Println("Handling order signature")
+	orderSigMsg := msg.Message.(*message.Message_OrderSignature).OrderSignature
+	orderSig := &types.OrderSig{
+		Signature: orderSigMsg.Signature,
+		TxHeaders: []*types.EncryptedTxHeader{},
+	}
+	for _, tx := range orderSigMsg.Order {
+		newTx := &types.EncryptedTxHeader{
+			Hash:    string(tx.Hash),
+			GammaG2: tx.GammaG2,
+		}
+		orderSig.TxHeaders = append(orderSig.TxHeaders, newTx)
+	}
+	h.mempool.AddOrderSig(orderSigMsg.BlockNum, *orderSig)
+	log.Printf("Order signature added for block number: %d", orderSigMsg.BlockNum)
+	return nil
 }
 
 func (h *Handler) HandleTransaction(tx string) error {
@@ -275,16 +390,9 @@ func (h *Handler) HandleTransaction(tx string) error {
 		pks[i] = ourSigners[i].blsKey
 	}
 
-	rawResp, err := h.crypto.EncryptTransaction([]byte(tx), pks, h.threshold, h.committeeSize)
+	encResponse, err := h.crypto.EncryptTransaction([]byte(tx), pks, h.threshold, h.committeeSize)
 	if err != nil {
 		log.Println("Error while encrypting the transaction: ", err)
-		return err
-	}
-
-	var encResponse crypto.EncryptResponse
-	err = proto.Unmarshal(rawResp, &encResponse)
-	if err != nil {
-		log.Println("Error while unmarshalling the encrypted response: ", err)
 		return err
 	}
 
@@ -327,7 +435,9 @@ func (h *Handler) HandleTransaction(tx string) error {
 				},
 			},
 		},
+		MessageType: message.MessageType_ENCRYPTED_TRANSACTION,
 	}
+	log.Println("Threshold number of message: ", h.threshold)
 	bytesMsg, err := proto.Marshal(msg)
 	if err != nil {
 		return err
@@ -418,7 +528,7 @@ func sendRawTransaction(rpcUrl string, content string) (string, error) {
 	defer resp.Body.Close()
 
 	// Yanıtı oku
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Response reading error: %v", err)
 	}

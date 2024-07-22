@@ -1,6 +1,7 @@
 package mempool
 
 import (
+	"bytes"
 	"slices"
 	"sync"
 
@@ -72,8 +73,19 @@ func (m *Mempool) GetThreshold(hash string) uint64 {
 func (m *Mempool) AddPartialDecryption(hash string, partDec *[]byte) {
 	arr := m.partDecRegistry.Load(hash)
 	if arr == nil {
-		m.partDecRegistry.Store(hash, &[][]byte{*partDec})
+		newArr := [][]byte{*partDec}
+		m.partDecRegistry.Store(hash, &newArr)
+	} else {
+		// Check if this partial decryption already exists
+		for _, existingPartDec := range *arr {
+			if bytes.Equal(existingPartDec, *partDec) {
+				return // Already exists, don't add
+			}
+		}
+		newArr := append(*arr, *partDec)
+		m.partDecRegistry.Store(hash, &newArr)
 	}
+
 }
 
 func (m *Mempool) GetPartialDecryptions(hash string) *[][]byte {
