@@ -17,7 +17,7 @@ func NewCrypto(port string) *Crypto {
 	return &Crypto{port: port}
 }
 
-func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) (EncryptResponse, error) {
+func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) (*EncryptResponse, error) {
 	client := http.Client{}
 
 	req := &EncryptRequest{
@@ -28,7 +28,7 @@ func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64
 	}
 	data, err := proto.Marshal(req)
 	if err != nil {
-		return EncryptResponse{}, err
+		return nil, err
 	}
 
 	postReader := bytes.NewReader(data)
@@ -37,26 +37,26 @@ func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64
 	resp, err := client.Post(url, "application/protobuf", postReader)
 
 	if err != nil {
-		return EncryptResponse{}, err
+		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return EncryptResponse{}, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return EncryptResponse{}, err
+		return nil, err
 	}
 
 	var encryptDataResp EncryptResponse
 	err = proto.Unmarshal(bodyBytes, &encryptDataResp)
 	if err != nil {
-		return EncryptResponse{}, err
+		return nil, err
 	}
 
-	return encryptDataResp, nil
+	return &encryptDataResp, nil
 }
 
 func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts map[uint64][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {

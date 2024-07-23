@@ -56,13 +56,13 @@ func (h *Handler) Start(ctx context.Context, errChan chan error) {
 
 	log.Printf("Initial state: ourIndex=%d, leaderIndex=%d, CommitteSize=%d", ourIndex, leaderIndex, CommitteSize)
 
-	go h.leaderRoutine(ctx, errChan, &leaderIndex, ourIndex, CommitteSize)
+	go h.leaderRoutine(ctx, errChan, &leaderIndex, ourIndex)
 	go h.messageHandlingRoutine(ctx, errChan, &leaderIndex, ourIndex, CommitteSize)
 
 	log.Println("Handler started successfully")
 }
 
-func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64, ourIndex, CommitteSize uint64) {
+func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64, ourIndex uint64) {
 	log.Println("Starting leader routine")
 	for {
 		select {
