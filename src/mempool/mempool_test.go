@@ -1,7 +1,6 @@
 package mempool_test
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/korayakpinar/network/src/mempool"
@@ -86,20 +85,20 @@ func TestMempool(t *testing.T) {
 		partDec2 := []byte{4, 5, 6}
 
 		t.Run("AddPartialDecryption", func(t *testing.T) {
-			mp.AddPartialDecryption(hash, &partDec1)
-			mp.AddPartialDecryption(hash, &partDec2)
-			mp.AddPartialDecryption(hash, &partDec1) // Attempt to add duplicate
+			mp.AddPartialDecryption(hash, 1, partDec1)
+			mp.AddPartialDecryption(hash, 2, partDec2)
+			mp.AddPartialDecryption(hash, 1, partDec1) // Attempt to add duplicate
 
 			count := mp.GetPartialDecryptionCount(hash)
-			assert.Equal(t, uint64(2), count, "Should have 2 unique partial decryptions")
+			assert.Equal(t, 2, count, "Should have 2 unique partial decryptions")
 		})
 
 		t.Run("GetPartialDecryptions", func(t *testing.T) {
 			partDecs := mp.GetPartialDecryptions(hash)
 			assert.NotNil(t, partDecs, "Partial decryptions should not be nil")
-			assert.Len(t, *partDecs, 2, "Should have 2 partial decryptions")
-			assert.True(t, bytes.Equal((*partDecs)[0], partDec1) || bytes.Equal((*partDecs)[1], partDec1), "Should contain partDec1")
-			assert.True(t, bytes.Equal((*partDecs)[0], partDec2) || bytes.Equal((*partDecs)[1], partDec2), "Should contain partDec2")
+			assert.Len(t, partDecs, 2, "Should have 2 partial decryptions")
+			assert.Equal(t, partDec1, partDecs[1], "Index 1 should contain partDec1")
+			assert.Equal(t, partDec2, partDecs[2], "Index 2 should contain partDec2")
 		})
 	})
 

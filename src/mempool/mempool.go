@@ -10,10 +10,12 @@ import (
 
 type Mempool struct {
 	encryptedTxs     sync.Map
+	includedTxs      sync.Map
 	decryptedTxs     sync.Map
 	encryptedTxCount int64
+	includedTxCount  int64
 	decryptedTxCount int64
-	partDecRegistry  Registry[string, [][]byte]
+	partDecRegistry  Registry[string, map[uint64][]byte]
 	orderSigRegistry Registry[uint64, []types.OrderSig]
 }
 
@@ -22,8 +24,9 @@ func NewMempool() *Mempool {
 		encryptedTxs:     sync.Map{},
 		decryptedTxs:     sync.Map{},
 		encryptedTxCount: 0,
+		includedTxCount:  0,
 		decryptedTxCount: 0,
-		partDecRegistry:  NewRegistry[string, [][]byte](),
+		partDecRegistry:  NewRegistry[string, map[uint64][]byte](),
 		orderSigRegistry: NewRegistry[uint64, []types.OrderSig](),
 	}
 }
@@ -33,6 +36,16 @@ func NewMempool() *Mempool {
 func (m *Mempool) AddEncryptedTx(tx *types.EncryptedTransaction) {
 	if _, loaded := m.encryptedTxs.LoadOrStore(tx.Header.Hash, tx); !loaded {
 		atomic.AddInt64(&m.encryptedTxCount, 1)
+	}
+}
+
+func (m *Mempool) IncludeEncryptedTxs(txHashes []string) {
+	for _, hash := range txHashes {
+		if tx, ok := m.encryptedTxs.Load(hash); ok {
+			m.encryptedTxs.Delete(hash)
+			atomic.AddInt64(&m.encryptedTxCount, -1)
+			m.includedTxs.Store(hash, tx)
+		}
 	}
 }
 
@@ -64,8 +77,44 @@ func (m *Mempool) GetEncryptedTransactionCount() int {
 	return int(atomic.LoadInt64(&m.encryptedTxCount))
 }
 
+// Included Transactions methods
+
+func (m *Mempool) AddIncludedTx(tx *types.EncryptedTransaction) {
+	if _, loaded := m.includedTxs.LoadOrStore(tx.Header.Hash, tx); !loaded {
+		atomic.AddInt64(&m.includedTxCount, 1)
+	}
+}
+
+func (m *Mempool) GetIncludedTransactions() []*types.EncryptedTransaction {
+	txs := make([]*types.EncryptedTransaction, 0, atomic.LoadInt64(&m.includedTxCount))
+	m.includedTxs.Range(func(_, value interface{}) bool {
+		txs = append(txs, value.(*types.EncryptedTransaction))
+		return true
+	})
+	return txs
+}
+
+func (m *Mempool) GetIncludedTransaction(hash string) *types.EncryptedTransaction {
+	if tx, ok := m.includedTxs.Load(hash); ok {
+		return tx.(*types.EncryptedTransaction)
+	}
+	return nil
+}
+
+func (m *Mempool) RemoveIncludedTransactions(txHashes []string) {
+	for _, hash := range txHashes {
+		if _, loaded := m.includedTxs.LoadAndDelete(hash); loaded {
+			atomic.AddInt64(&m.includedTxCount, -1)
+		}
+	}
+}
+
+func (m *Mempool) GetIncludedTransactionCount() int {
+	return int(atomic.LoadInt64(&m.includedTxCount))
+}
+
 func (m *Mempool) GetThreshold(hash string) uint64 {
-	if tx, ok := m.encryptedTxs.Load(hash); ok {
+	if tx, ok := m.includedTxs.Load(hash); ok {
 		return tx.(*types.EncryptedTransaction).Body.Threshold
 	}
 	return 0
@@ -109,32 +158,41 @@ func (m *Mempool) GetDecryptedTransactionCount() int {
 
 // Partial Decryption methods
 
-func (m *Mempool) AddPartialDecryption(hash string, partDec *[]byte) {
-	arr := m.partDecRegistry.Load(hash)
-	if arr == nil {
-		newArr := [][]byte{*partDec}
-		m.partDecRegistry.Store(hash, &newArr)
+func (m *Mempool) AddPartialDecryption(hash string, index uint64, partDec []byte) {
+	partMapPtr := m.partDecRegistry.Load(hash)
+	if partMapPtr == nil {
+		// If no map exists for this hash, create a new one
+		newMap := make(map[uint64][]byte)
+		newMap[index] = partDec
+		m.partDecRegistry.Store(hash, &newMap)
 	} else {
-		for _, existingPartDec := range *arr {
-			if bytes.Equal(existingPartDec, *partDec) {
+		partMap := *partMapPtr
+		// If a map already exists, check if this index already has a value
+		if existingPartDec, exists := partMap[index]; exists {
+			if bytes.Equal(existingPartDec, partDec) {
 				return // Already exists, don't add
 			}
 		}
-		newArr := append(*arr, *partDec)
-		m.partDecRegistry.Store(hash, &newArr)
+		// Add the partial decryption for this index
+		partMap[index] = partDec
+		m.partDecRegistry.Store(hash, &partMap)
 	}
 }
 
-func (m *Mempool) GetPartialDecryptions(hash string) *[][]byte {
-	return m.partDecRegistry.Load(hash)
+func (m *Mempool) GetPartialDecryptions(hash string) map[uint64][]byte {
+	partMapPtr := m.partDecRegistry.Load(hash)
+	if partMapPtr == nil {
+		return nil
+	}
+	return *partMapPtr
 }
 
-func (m *Mempool) GetPartialDecryptionCount(hash string) uint64 {
-	partDecs := m.partDecRegistry.Load(hash)
-	if partDecs == nil {
+func (m *Mempool) GetPartialDecryptionCount(hash string) int {
+	partMapPtr := m.partDecRegistry.Load(hash)
+	if partMapPtr == nil {
 		return 0
 	}
-	return uint64(len(*partDecs))
+	return len(*partMapPtr)
 }
 
 // Order Signature methods

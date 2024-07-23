@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"slices"
 	"time"
@@ -73,7 +72,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 		default:
 			log.Printf("Leader check: ourIndex=%d, leaderIndex=%d", ourIndex, *leaderIndex)
 			if ourIndex == *leaderIndex {
-				if err := h.performLeaderDuties(ctx); err != nil {
+				if err := h.performLeaderDuties(ctx, leaderIndex); err != nil {
 					log.Printf("Error performing leader duties: %v", err)
 					errChan <- err
 					return
@@ -84,7 +83,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 	}
 }
 
-func (h *Handler) performLeaderDuties(ctx context.Context) error {
+func (h *Handler) performLeaderDuties(ctx context.Context, leaderIndex *uint64) error {
 	log.Println("Performing leader duties")
 	encTxs := h.mempool.GetEncryptedTransactions()
 	if len(encTxs) == 0 {
@@ -98,12 +97,16 @@ func (h *Handler) performLeaderDuties(ctx context.Context) error {
 		return fmt.Errorf("failed to prepare encrypted batch: %w", err)
 	}
 
-	time.Sleep(5 * time.Second) // Wait for other nodes to prepare partial decryptions
 	if err := h.publishEncryptedBatch(ctx, encBatch); err != nil {
 		return fmt.Errorf("failed to publish encrypted batch: %w", err)
 	}
+	time.Sleep(3 * time.Second) // Wait for other nodes to prepare partial decryptions
 
 	log.Println("Leader duties completed successfully")
+
+	*leaderIndex++
+	*leaderIndex %= h.committeeSize
+
 	return nil
 }
 
@@ -161,6 +164,7 @@ func (h *Handler) publishEncryptedBatch(ctx context.Context, encBatch *types.Enc
 		},
 	}
 
+	var txHashes []string
 	for _, tx := range encBatch.Body.EncTxs {
 		msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch.Body.Transactions = append(
 			msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch.Body.Transactions,
@@ -170,11 +174,28 @@ func (h *Handler) publishEncryptedBatch(ctx context.Context, encBatch *types.Enc
 				PkIDs:   tx.PkIDs,
 			},
 		)
+		txHashes = append(txHashes, string(tx.Hash))
 	}
 
 	msgBytes, err := proto.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	h.mempool.IncludeEncryptedTxs(txHashes)
+	for _, txHash := range txHashes {
+		incTx := h.mempool.GetIncludedTransaction(txHash)
+		if incTx != nil {
+			log.Printf("Transaction included: %s", txHash)
+			if slices.Contains(incTx.Header.PkIDs, h.ourIndex) {
+				partDec, err := h.crypto.PartialDecrypt(incTx.Header.GammaG2)
+				if err != nil {
+					return fmt.Errorf("failed to partially decrypt transaction: %w", err)
+				}
+				h.mempool.AddPartialDecryption(txHash, h.ourIndex, partDec)
+
+			}
+		}
 	}
 
 	err = h.topic.Publish(ctx, msgBytes)
@@ -257,15 +278,24 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 	log.Println("Handling partial decryption")
 	partDecMsg := msg.Message.(*message.Message_PartialDecryption).PartialDecryption
 	partDec := partDecMsg.PartDec
+	sender := partDecMsg.Sender
 	txHash := partDecMsg.TxHash
-	h.mempool.AddPartialDecryption(txHash, &partDec)
+	h.mempool.AddPartialDecryption(txHash, sender, partDec)
 
-	if h.mempool.GetPartialDecryptionCount(txHash) >= 2 /* h.mempool.GetThreshold(txHash) == h.mempool.GetPartialDecryptionCount(txHash) */ {
+	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
-		encTx := h.mempool.GetEncryptedTransaction(txHash)
+		encTx := h.mempool.GetIncludedTransaction(txHash)
 		encryptedContent := encTx.Body.EncText
 
-		content, err := h.crypto.DecryptTransaction(encryptedContent, [][]byte{}, [][]byte{{}, {}}, []byte{}, []byte{}, []byte{}, 0, CommitteSize)
+		pks := make([][]byte, CommitteSize)
+		for i := 0; i < int(CommitteSize); i++ {
+			pks[i] = h.GetSignerByIndex(uint64(i)).blsKey
+		}
+
+		partDecs := h.mempool.GetPartialDecryptions(txHash)
+
+		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteSize)
+
 		if err != nil {
 			return fmt.Errorf("failed to decrypt transaction: %w", err)
 		}
@@ -292,25 +322,20 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 }
 
 func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message, leaderIndex *uint64, ourIndex, CommitteSize uint64) error {
+
 	log.Println("Handling encrypted batch")
 	encBatchMsg := msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch
+
+	if encBatchMsg.Header.LeaderID == ourIndex {
+		log.Println("Ignoring own batch")
+		return nil
+	}
 
 	if encBatchMsg.Header.LeaderID != *leaderIndex {
 		log.Printf("Ignoring batch from non-leader (received: %d, expected: %d)", encBatchMsg.Header.LeaderID, *leaderIndex)
 		return nil
 	}
 
-	encBatch := &types.EncryptedBatch{
-		Header: &types.BatchHeader{
-			LeaderID:  encBatchMsg.Header.LeaderID,
-			BlockNum:  encBatchMsg.Header.BlockNum,
-			Hash:      encBatchMsg.Header.Hash,
-			Signature: encBatchMsg.Header.Signature,
-		},
-		Body: &types.BatchBody{
-			EncTxs: []*types.EncryptedTxHeader{},
-		},
-	}
 	var txHashes []string
 	for _, encTx := range encBatchMsg.Body.Transactions {
 		txHashes = append(txHashes, string(encTx.Hash))
@@ -324,6 +349,7 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 				Message: &message.Message_PartialDecryption{
 					PartialDecryption: &message.PartialDecryption{
 						TxHash:  encTx.Hash,
+						Sender:  ourIndex,
 						PartDec: partDec,
 					},
 				},
@@ -339,12 +365,8 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 				return fmt.Errorf("failed to publish partial decryption message: %w", err)
 			}
 		}
-		newTx := &types.EncryptedTxHeader{
-			Hash:    string(encTx.Hash),
-			GammaG2: encTx.GammaG2,
-		}
-		encBatch.Body.EncTxs = append(encBatch.Body.EncTxs, newTx)
 	}
+	h.mempool.IncludeEncryptedTxs(txHashes)
 
 	*leaderIndex++
 	*leaderIndex %= CommitteSize
@@ -372,10 +394,18 @@ func (h *Handler) handleOrderSignature(msg *message.Message) error {
 }
 
 func (h *Handler) HandleTransaction(tx string) error {
-	randomIndexes := make([]uint64, h.threshold)
-	for i := 0; i < int(h.threshold); i++ {
-		randomIndexes[i] = uint64(rand.Intn(int(h.committeeSize)))
+	randomIndexes := make([]uint64, h.committeeSize)
+	for i := 0; i < int(h.committeeSize); i++ {
+		/* randNum := uint64(rand.Intn(int(h.committeeSize)))
+		if !slices.Contains(randomIndexes, randNum) {
+			randomIndexes[i] = randNum
+		} else {
+			i--
+		} */
+		randomIndexes[i] = uint64(i)
 	}
+
+	log.Println("Random indexes: ", randomIndexes)
 
 	pks := make([][]byte, h.committeeSize)
 	ourSigners := *h.GetSigners()

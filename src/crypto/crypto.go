@@ -59,10 +59,10 @@ func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64
 	return encryptDataResp, nil
 }
 
-func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts [][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
+func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts map[uint64][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
 	client := http.Client{}
 
-	req := &DecryptParamsRequest{
+	req := &DecryptRequest{
 		Enc:   []byte(enc),
 		Pks:   pks,
 		Parts: parts,
