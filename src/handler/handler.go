@@ -294,7 +294,8 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 
 		partDecs := h.mempool.GetPartialDecryptions(txHash)
 
-		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteSize)
+		// TODO: Seperate the committee size and the nodes count, for now we are using the same number
+		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteSize+1)
 
 		if err != nil {
 			return fmt.Errorf("failed to decrypt transaction: %w", err)
@@ -395,6 +396,7 @@ func (h *Handler) handleOrderSignature(msg *message.Message) error {
 
 func (h *Handler) HandleTransaction(tx string) error {
 	randomIndexes := make([]uint64, h.committeeSize)
+	// TODO: Uncomment this section and randomly select the committee members
 	for i := 0; i < int(h.committeeSize); i++ {
 		/* randNum := uint64(rand.Intn(int(h.committeeSize)))
 		if !slices.Contains(randomIndexes, randNum) {
@@ -493,17 +495,6 @@ func (h *Handler) GetSigners() *[]Signer {
 func (h *Handler) GetSignerByIndex(index uint64) *Signer {
 	return &(*h.signers)[index]
 }
-
-/*
-func (h *Handler) IsSigner(p peer.ID) bool {
-	for _, pub := range *h.signers {
-		if pub.peerID == p {
-			return true
-		}
-	}
-	return false
-}
-*/
 
 func (h *Handler) Stop() {
 	h.sub.Cancel()

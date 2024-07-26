@@ -71,6 +71,7 @@ func (p *Proxy) proxyHandler(w http.ResponseWriter, r *http.Request) {
 	if method == "eth_sendTransaction" || method == "eth_sendRawTransaction" {
 		var req TransactionRequest
 
+		// Change this response to include the transaction hash after transaction has been decrypted
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"jsonrpc":"2.0","result":"Catched!","id":1}`))
 

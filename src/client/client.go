@@ -155,7 +155,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	log.Println("BLS Public Key submitted successfully or already submitted")
 
 	var operatorCount *big.Int = big.NewInt(0)
-	for operatorCount.Int64() < int64(cli.committeeSize) {
+	for operatorCount.Int64() < int64(cli.committeeSize)-1 {
 		operatorCount, err = operatorsContract.GetOperatorCount(nil)
 		if err != nil {
 			log.Panicln("Couldn't get the operator count from the RPC, error: ", err)
@@ -208,7 +208,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	go streamConsoleTo(ctx, topicHandle)
 
 	// Initialize the handler and start it
-	handler := handler.NewHandler(sub, topicHandle, &signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize, ourIndex.Uint64(), cli.committeeSize/2)
+	handler := handler.NewHandler(sub, topicHandle, &signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, ourIndex.Uint64(), cli.committeeSize/2)
 	cli.Handler = handler
 	go handler.Start(ctx, errChan)
 
