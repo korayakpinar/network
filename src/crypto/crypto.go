@@ -59,18 +59,19 @@ func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64
 	return &encryptDataResp, nil
 }
 
-func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts map[uint64][]byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
+func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts map[uint64][]byte, gammaG2 []byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
 	client := http.Client{}
 
 	req := &DecryptRequest{
-		Enc:   []byte(enc),
-		Pks:   pks,
-		Parts: parts,
-		Sa1:   sa1,
-		Sa2:   sa2,
-		Iv:    iv,
-		T:     t,
-		N:     n,
+		Enc:     []byte(enc),
+		Pks:     pks,
+		Parts:   parts,
+		GammaG2: gammaG2,
+		Sa1:     sa1,
+		Sa2:     sa2,
+		Iv:      iv,
+		T:       t,
+		N:       n,
 	}
 	data, err := proto.Marshal(req)
 	if err != nil {

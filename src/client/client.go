@@ -102,7 +102,21 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 		api := api.NewCrypto(cli.apiPort)
 
-		ourIndex, err := operatorsContract.GetOperatorCount(nil)
+		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return operatorsContract.RegisterOperator(auth)
+		})
+
+		if err != nil {
+			log.Panicln("Registration transaction couldn't be successful, error: ", err)
+			return
+		}
+
+		// Wait for the operator to be registered
+		waitForTxConfirmation(ethClient, tx, 2)
+
+		log.Println("Operator registered successfully")
+
+		ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
 		if err != nil {
 			log.Panicln("Get operator by index call went wrong, error: ", err)
 			return
@@ -116,17 +130,17 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return operatorsContract.RegisterOperator(auth, blsPubKey)
+		tx, err = executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return operatorsContract.SubmitBlsKey(auth, blsPubKey)
 		})
 		if err != nil {
-			log.Panicln("Registration transaction couldn't be successful, error: ", err)
+			log.Panicln("Submit BLS Public Key transaction couldn't be successful, error: ", err)
 			return
 		}
-		log.Printf("Operator registered with tx: %s\n", tx.Hash().Hex())
 
-		// Wait for the operator to be registered
+		// Wait for the BLS Public Key to be submitted
 		waitForTxConfirmation(ethClient, tx, 2)
+
 	}
 	log.Println("Operator registered successfully or already registered")
 

@@ -294,7 +294,7 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 
 		partDecs := h.mempool.GetPartialDecryptions(txHash)
 
-		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteSize)
+		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteSize)
 
 		if err != nil {
 			return fmt.Errorf("failed to decrypt transaction: %w", err)

@@ -31,7 +31,7 @@ var (
 
 // OperatorsMetaData contains all meta data concerning the Operators contract.
 var OperatorsMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"GetOperatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"GetOperatorIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"IsRegistered\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"Operators\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"BLSPubKeyContract\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"getBLSPubKey\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"getBLSPubKeyByIndex\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"blsPubKey\",\"type\":\"bytes\"}],\"name\":\"registerOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[],\"name\":\"GetOperatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"GetOperatorIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"IsRegistered\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"Operators\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"BLSPubKeyContract\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"getBLSPubKey\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"getBLSPubKeyByIndex\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"hasSubmittedBLSKey\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"hasSubmittedKey\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"registerOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"blsPubKey\",\"type\":\"bytes\"}],\"name\":\"submitBlsKey\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // OperatorsABI is the input ABI used to generate the binding from.
@@ -380,23 +380,106 @@ func (_Operators *OperatorsCallerSession) GetBLSPubKeyByIndex(index *big.Int) ([
 	return _Operators.Contract.GetBLSPubKeyByIndex(&_Operators.CallOpts, index)
 }
 
-// RegisterOperator is a paid mutator transaction binding the contract method 0x8231b54c.
+// HasSubmittedBLSKey is a free data retrieval call binding the contract method 0xcd3613b5.
 //
-// Solidity: function registerOperator(bytes blsPubKey) returns()
-func (_Operators *OperatorsTransactor) RegisterOperator(opts *bind.TransactOpts, blsPubKey []byte) (*types.Transaction, error) {
-	return _Operators.contract.Transact(opts, "registerOperator", blsPubKey)
+// Solidity: function hasSubmittedBLSKey(address operatorAddress) view returns(bool)
+func (_Operators *OperatorsCaller) HasSubmittedBLSKey(opts *bind.CallOpts, operatorAddress common.Address) (bool, error) {
+	var out []interface{}
+	err := _Operators.contract.Call(opts, &out, "hasSubmittedBLSKey", operatorAddress)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
 }
 
-// RegisterOperator is a paid mutator transaction binding the contract method 0x8231b54c.
+// HasSubmittedBLSKey is a free data retrieval call binding the contract method 0xcd3613b5.
 //
-// Solidity: function registerOperator(bytes blsPubKey) returns()
-func (_Operators *OperatorsSession) RegisterOperator(blsPubKey []byte) (*types.Transaction, error) {
-	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts, blsPubKey)
+// Solidity: function hasSubmittedBLSKey(address operatorAddress) view returns(bool)
+func (_Operators *OperatorsSession) HasSubmittedBLSKey(operatorAddress common.Address) (bool, error) {
+	return _Operators.Contract.HasSubmittedBLSKey(&_Operators.CallOpts, operatorAddress)
 }
 
-// RegisterOperator is a paid mutator transaction binding the contract method 0x8231b54c.
+// HasSubmittedBLSKey is a free data retrieval call binding the contract method 0xcd3613b5.
 //
-// Solidity: function registerOperator(bytes blsPubKey) returns()
-func (_Operators *OperatorsTransactorSession) RegisterOperator(blsPubKey []byte) (*types.Transaction, error) {
-	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts, blsPubKey)
+// Solidity: function hasSubmittedBLSKey(address operatorAddress) view returns(bool)
+func (_Operators *OperatorsCallerSession) HasSubmittedBLSKey(operatorAddress common.Address) (bool, error) {
+	return _Operators.Contract.HasSubmittedBLSKey(&_Operators.CallOpts, operatorAddress)
+}
+
+// HasSubmittedKey is a free data retrieval call binding the contract method 0xabd58956.
+//
+// Solidity: function hasSubmittedKey(address ) view returns(bool)
+func (_Operators *OperatorsCaller) HasSubmittedKey(opts *bind.CallOpts, arg0 common.Address) (bool, error) {
+	var out []interface{}
+	err := _Operators.contract.Call(opts, &out, "hasSubmittedKey", arg0)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// HasSubmittedKey is a free data retrieval call binding the contract method 0xabd58956.
+//
+// Solidity: function hasSubmittedKey(address ) view returns(bool)
+func (_Operators *OperatorsSession) HasSubmittedKey(arg0 common.Address) (bool, error) {
+	return _Operators.Contract.HasSubmittedKey(&_Operators.CallOpts, arg0)
+}
+
+// HasSubmittedKey is a free data retrieval call binding the contract method 0xabd58956.
+//
+// Solidity: function hasSubmittedKey(address ) view returns(bool)
+func (_Operators *OperatorsCallerSession) HasSubmittedKey(arg0 common.Address) (bool, error) {
+	return _Operators.Contract.HasSubmittedKey(&_Operators.CallOpts, arg0)
+}
+
+// RegisterOperator is a paid mutator transaction binding the contract method 0x2acde098.
+//
+// Solidity: function registerOperator() returns()
+func (_Operators *OperatorsTransactor) RegisterOperator(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _Operators.contract.Transact(opts, "registerOperator")
+}
+
+// RegisterOperator is a paid mutator transaction binding the contract method 0x2acde098.
+//
+// Solidity: function registerOperator() returns()
+func (_Operators *OperatorsSession) RegisterOperator() (*types.Transaction, error) {
+	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts)
+}
+
+// RegisterOperator is a paid mutator transaction binding the contract method 0x2acde098.
+//
+// Solidity: function registerOperator() returns()
+func (_Operators *OperatorsTransactorSession) RegisterOperator() (*types.Transaction, error) {
+	return _Operators.Contract.RegisterOperator(&_Operators.TransactOpts)
+}
+
+// SubmitBlsKey is a paid mutator transaction binding the contract method 0xb7af88b0.
+//
+// Solidity: function submitBlsKey(bytes blsPubKey) returns()
+func (_Operators *OperatorsTransactor) SubmitBlsKey(opts *bind.TransactOpts, blsPubKey []byte) (*types.Transaction, error) {
+	return _Operators.contract.Transact(opts, "submitBlsKey", blsPubKey)
+}
+
+// SubmitBlsKey is a paid mutator transaction binding the contract method 0xb7af88b0.
+//
+// Solidity: function submitBlsKey(bytes blsPubKey) returns()
+func (_Operators *OperatorsSession) SubmitBlsKey(blsPubKey []byte) (*types.Transaction, error) {
+	return _Operators.Contract.SubmitBlsKey(&_Operators.TransactOpts, blsPubKey)
+}
+
+// SubmitBlsKey is a paid mutator transaction binding the contract method 0xb7af88b0.
+//
+// Solidity: function submitBlsKey(bytes blsPubKey) returns()
+func (_Operators *OperatorsTransactorSession) SubmitBlsKey(blsPubKey []byte) (*types.Transaction, error) {
+	return _Operators.Contract.SubmitBlsKey(&_Operators.TransactOpts, blsPubKey)
 }
