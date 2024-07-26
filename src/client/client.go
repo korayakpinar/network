@@ -98,9 +98,9 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		return
 	}
 
-	if !registered {
+	api := api.NewCrypto(cli.apiPort)
 
-		api := api.NewCrypto(cli.apiPort)
+	if !registered {
 
 		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
 			return operatorsContract.RegisterOperator(auth)
@@ -116,6 +116,16 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 		log.Println("Operator registered successfully")
 
+	}
+	log.Println("Operator registered successfully or already registered")
+
+	submissions, err := operatorsContract.HasSubmittedBLSKey(nil, auth.From)
+	if err != nil {
+		log.Panicln("Couldn't get the BLS Key submission status from the RPC, error: ", err)
+		return
+	}
+
+	if !submissions {
 		ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
 		if err != nil {
 			log.Panicln("Get operator by index call went wrong, error: ", err)
@@ -130,7 +140,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		tx, err = executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
 			return operatorsContract.SubmitBlsKey(auth, blsPubKey)
 		})
 		if err != nil {
@@ -140,9 +150,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 		// Wait for the BLS Public Key to be submitted
 		waitForTxConfirmation(ethClient, tx, 2)
-
 	}
-	log.Println("Operator registered successfully or already registered")
 
 	log.Println("BLS Public Key submitted successfully or already submitted")
 
