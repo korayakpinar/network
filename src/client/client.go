@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/korayakpinar/network/src/contracts"
+	"github.com/korayakpinar/network/src/pinata"
 
 	api "github.com/korayakpinar/network/src/crypto"
 	"github.com/korayakpinar/network/src/handler"
@@ -33,11 +35,12 @@ import (
 )
 
 type Client struct {
-	Host    host.Host
-	PubSub  *pubsub.PubSub
-	DHT     *kaddht.IpfsDHT
-	Handler *handler.Handler
-	Proxy   *proxy.Proxy
+	Host        host.Host
+	PubSub      *pubsub.PubSub
+	DHT         *kaddht.IpfsDHT
+	Handler     *handler.Handler
+	Proxy       *proxy.Proxy
+	IPFSService *pinata.IPFSService
 
 	signers       *[]handler.Signer
 	proxyPort     string
@@ -53,9 +56,9 @@ type discoveryNotifee struct {
 	ctx context.Context
 }
 
-func NewClient(h host.Host, dht *kaddht.IpfsDHT, apiPort, proxyPort, rpcUrl, contractAddr, privKey string, committeSize uint64) *Client {
+func NewClient(h host.Host, dht *kaddht.IpfsDHT, ipfsService *pinata.IPFSService, apiPort, proxyPort, rpcUrl, contractAddr, privKey string, committeSize uint64) *Client {
 	signerArr := make([]handler.Signer, 0)
-	return &Client{h, nil, dht, nil, nil, &signerArr, proxyPort, rpcUrl, contractAddr, privKey, apiPort, committeSize}
+	return &Client{h, nil, dht, nil, nil, ipfsService, &signerArr, proxyPort, rpcUrl, contractAddr, privKey, apiPort, committeSize}
 }
 
 func (cli *Client) Start(ctx context.Context, topicName string) {
@@ -140,8 +143,19 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
+		// Encode the BLS Public Key
+		key := map[string]interface{}{
+			"data": blsPubKey,
+		}
+		resp, err := cli.IPFSService.UploadJSON(key, "blsPubKey")
+
+		if err != nil {
+			log.Panicln("Couldn't upload the BLS Public Key to IPFS, error: ", err)
+			return
+		}
+
 		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return operatorsContract.SubmitBlsKey(auth, blsPubKey)
+			return operatorsContract.SubmitBlsKeyCID(auth, resp.IpfsHash)
 		})
 		if err != nil {
 			log.Panicln("Submit BLS Public Key transaction couldn't be successful, error: ", err)
@@ -174,11 +188,31 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		signerKey, err := operatorsContract.GetBLSPubKeyByIndex(nil, big.NewInt(int64(i)))
+		// Get the BLS Public Key CID from the contract
+		keyCID, err := operatorsContract.GetBLSPubKeyCIDByIndex(nil, big.NewInt(int64(i)))
 		if err != nil {
 			log.Panicln("Couldn't get the BLS Pub Key by Index from the contract, error: ", err)
 			return
 		}
+
+		// Get the BLS Public Key from IPFS
+		keyJSON, err := cli.IPFSService.GetFileByCID(keyCID)
+		if err != nil {
+			log.Panicln("Couldn't get the BLS Pub Key from IPFS, error: ", err)
+			return
+		}
+
+		// Create a map to store the JSON data
+		var result map[string][]byte
+
+		// Decode the BLS Public Key from JSON
+		if err := json.Unmarshal([]byte(keyJSON), &result); err != nil {
+			fmt.Println("Hata:", err)
+			return
+		}
+
+		// Take the BLS Public Key from the JSON
+		signerKey := result["data"]
 
 		if operator.Operator == auth.From {
 			ourIndex = big.NewInt(int64(i))
