@@ -476,6 +476,47 @@ func (h *Handler) HandleTransaction(tx string) error {
 	return nil
 }
 
+func (h *Handler) CheckTransactionDuplicate(tx string) bool {
+	txHash := fmt.Sprintf("%x", sha256.Sum256([]byte(tx)))
+	encTx := h.mempool.GetEncryptedTransaction(txHash)
+	decTx := h.mempool.GetDecryptedTransaction(txHash)
+	incTx := h.mempool.GetIncludedTransaction(txHash)
+
+	if encTx != nil || decTx != nil || incTx != nil {
+		return true
+	}
+
+	return false
+}
+
+func (h *Handler) CheckTransactionDecrypted(hash string) bool {
+	decTx := h.mempool.GetDecryptedTransaction(hash)
+	return decTx != nil
+}
+
+func (h *Handler) CheckTransactionIncluded(hash string) bool {
+	incTx := h.mempool.GetIncludedTransaction(hash)
+	return incTx != nil
+}
+
+func (h *Handler) GetPartialDecryptionCount(hash string) int {
+	return h.mempool.GetPartialDecryptionCount(hash)
+}
+
+func (h *Handler) GetMetadataOfTx(hash string) (committeeSize, threshold int) {
+	encTx := h.mempool.GetEncryptedTransaction(hash)
+	if encTx != nil {
+		return len(encTx.Header.PkIDs), int(encTx.Body.Threshold)
+	}
+
+	incTx := h.mempool.GetIncludedTransaction(hash)
+	if incTx != nil {
+		return len(incTx.Header.PkIDs), int(incTx.Body.Threshold)
+	}
+
+	return 0, 0
+}
+
 func NewSigner(address common.Address, blsKey []byte) Signer {
 	return Signer{address: address, blsKey: blsKey}
 }
