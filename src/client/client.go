@@ -1,13 +1,11 @@
 package client
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -238,9 +236,6 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		panic(err)
 	}
 
-	// TODO: Remove this, it's just for testing
-	go streamConsoleTo(ctx, topicHandle)
-
 	// Initialize the handler and start it
 	handler := handler.NewHandler(sub, topicHandle, &signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, ourIndex.Uint64(), cli.committeeSize/2)
 	cli.Handler = handler
@@ -303,7 +298,7 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 		}
 	}
 	fmt.Println("Peer discovery complete")
-	return
+
 }
 
 func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan chan error) (topic *pubsub.Topic) {
@@ -375,19 +370,6 @@ func initDHT(ctx context.Context, cli *Client) error {
 	wg.Wait()
 
 	return nil
-}
-
-func streamConsoleTo(ctx context.Context, topic *pubsub.Topic) {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		s, err := reader.ReadString('\n')
-		if err != nil {
-			panic(err)
-		}
-		if err := topic.Publish(ctx, []byte(s)); err != nil {
-			fmt.Println("### Publish error:", err)
-		}
-	}
 }
 
 func (cli *Client) GetHandler() *handler.Handler {
