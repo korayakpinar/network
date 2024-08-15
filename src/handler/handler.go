@@ -11,9 +11,12 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/korayakpinar/network/src/crypto"
 	"github.com/korayakpinar/network/src/mempool"
 	"github.com/korayakpinar/network/src/message"
@@ -421,9 +424,15 @@ func (h *Handler) HandleTransaction(tx string) error {
 		return err
 	}
 
+	txHash, err := h.CalculateTxHash(tx)
+	if err != nil {
+		log.Println("Error while calculating the transaction hash: ", err)
+		return err
+	}
+
 	// Construct the encrypted transaction
 	encTxHeader := &types.EncryptedTxHeader{
-		Hash:    fmt.Sprintf("%x", sha256.Sum256([]byte(tx))),
+		Hash:    txHash,
 		GammaG2: encResponse.GammaG2,
 		PkIDs:   randomIndexes,
 	}
@@ -476,8 +485,7 @@ func (h *Handler) HandleTransaction(tx string) error {
 	return nil
 }
 
-func (h *Handler) CheckTransactionDuplicate(tx string) bool {
-	txHash := fmt.Sprintf("%x", sha256.Sum256([]byte(tx)))
+func (h *Handler) CheckTransactionDuplicate(txHash string) bool {
 	encTx := h.mempool.GetEncryptedTransaction(txHash)
 	decTx := h.mempool.GetDecryptedTransaction(txHash)
 	incTx := h.mempool.GetIncludedTransaction(txHash)
@@ -515,6 +523,31 @@ func (h *Handler) GetMetadataOfTx(hash string) (committeeSize, threshold int) {
 	}
 
 	return 0, 0
+}
+
+func (h *Handler) CalculateTxHash(rawTx string) (string, error) {
+	// Remove the '0x' prefix if present
+	rawTx = strings.TrimPrefix(rawTx, "0x")
+
+	// Decode the hex string to bytes
+	txBytes, err := hex.DecodeString(rawTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode hex string: %v", err)
+	}
+
+	// Create a new transaction object
+	tx := new(ethTypes.Transaction)
+
+	// Decode the RLP-encoded transaction
+	err = rlp.DecodeBytes(txBytes, tx)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode RLP: %v", err)
+	}
+
+	// Calculate the hash
+	hash := tx.Hash()
+
+	return hash.Hex(), nil
 }
 
 func NewSigner(address common.Address, blsKey []byte) Signer {

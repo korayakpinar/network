@@ -1,8 +1,6 @@
 package proxy
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,8 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/gorilla/mux"
 	"github.com/korayakpinar/network/src/handler"
 )
@@ -60,7 +56,7 @@ func NewProxy(handler *handler.Handler, rpcURL, port string) *Proxy {
 func (p *Proxy) Start() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", p.proxyHandler)
-	r.HandleFunc("/tx-status/{encoded}", p.txStatusHandler)
+	r.HandleFunc("/tx/{txHash}", p.txStatusHandler)
 	log.Printf("Proxy server is running on port %s", p.Port)
 	log.Fatal(http.ListenAndServe(":"+p.Port, r))
 }
@@ -68,29 +64,20 @@ func (p *Proxy) Start() {
 // txStatusHandler handles requests for transaction status.
 func (p *Proxy) txStatusHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	encoded := vars["encoded"]
+	txHash := vars["txHash"]
 
-	if encoded == "" {
+	if txHash == "" {
 		http.Error(w, "Transaction hash is required", http.StatusBadRequest)
 		return
 	}
 
-	// This is the hash of the transaction that we use to identify it in the network
-	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(encoded)))
-
-	// This is the transaction hash that is used in the Ethereum network which is in the transaction data
-	txHash, err := calculateTxHash(encoded)
-	if err != nil {
-		txHash = string(hash[:])
-	}
-
-	committeeSize, threshold := p.Handler.GetMetadataOfTx(hash)
+	committeeSize, threshold := p.Handler.GetMetadataOfTx(txHash)
 
 	// Create the response with the transaction status
 	status := TransactionStatus{
 		Proposed:               true,
-		PartialDecryptionCount: p.Handler.GetPartialDecryptionCount(hash),
-		Decrypted:              p.Handler.CheckTransactionDecrypted(hash),
+		PartialDecryptionCount: p.Handler.GetPartialDecryptionCount(txHash),
+		Decrypted:              p.Handler.CheckTransactionDecrypted(txHash),
 		Included:               true,
 		TxInfo: TxInfo{
 			Hash:          txHash,
@@ -146,10 +133,16 @@ func (p *Proxy) proxyHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		txHash, err := p.Handler.CalculateTxHash(rawTx)
+		if err != nil {
+			http.Error(w, "Failed to calculate transaction hash", http.StatusInternalServerError)
+			return
+		}
+
 		// Create the response with the calculated hash
 		response := map[string]interface{}{
 			"jsonrpc": "2.0",
-			"result":  rawTx,
+			"result":  txHash,
 			"id":      txReq.ID,
 		}
 
@@ -203,29 +196,4 @@ func (p *Proxy) forwardRequest(body []byte) ([]byte, int, error) {
 	}
 
 	return responseBody, resp.StatusCode, nil
-}
-
-func calculateTxHash(rawTx string) (string, error) {
-	// Remove the '0x' prefix if present
-	rawTx = strings.TrimPrefix(rawTx, "0x")
-
-	// Decode the hex string to bytes
-	txBytes, err := hex.DecodeString(rawTx)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode hex string: %v", err)
-	}
-
-	// Create a new transaction object
-	tx := new(types.Transaction)
-
-	// Decode the RLP-encoded transaction
-	err = rlp.DecodeBytes(txBytes, tx)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode RLP: %v", err)
-	}
-
-	// Calculate the hash
-	hash := tx.Hash()
-
-	return hash.Hex(), nil
 }
