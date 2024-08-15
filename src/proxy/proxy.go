@@ -75,7 +75,7 @@ func (p *Proxy) txStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create the response with the transaction status
 	status := TransactionStatus{
-		Proposed:               true,
+		Proposed:               p.Handler.CheckTransactionProposed(txHash),
 		PartialDecryptionCount: p.Handler.GetPartialDecryptionCount(txHash),
 		Decrypted:              p.Handler.CheckTransactionDecrypted(txHash),
 		Included:               true,

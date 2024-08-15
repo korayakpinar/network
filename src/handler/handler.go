@@ -502,7 +502,7 @@ func (h *Handler) CheckTransactionDecrypted(hash string) bool {
 	return decTx != nil
 }
 
-func (h *Handler) CheckTransactionIncluded(hash string) bool {
+func (h *Handler) CheckTransactionProposed(hash string) bool {
 	incTx := h.mempool.GetIncludedTransaction(hash)
 	return incTx != nil
 }
