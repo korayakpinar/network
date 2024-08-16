@@ -285,6 +285,11 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 	txHash := partDecMsg.TxHash
 	h.mempool.AddPartialDecryption(txHash, sender, partDec)
 
+	// Skip if we are not the first node in the committee
+	if h.ourIndex != 0 {
+		return nil
+	}
+
 	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
 		encTx := h.mempool.GetIncludedTransaction(txHash)
@@ -314,7 +319,7 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 		})
 		log.Printf("Transaction decrypted: %s", txHash)
 		log.Printf("Our index: %d, Leader index: %d", h.ourIndex, leaderIndex)
-		if h.ourIndex == leaderIndex-1 || leaderIndex == h.ourIndex {
+		if h.ourIndex == 0 {
 			tx, err := sendRawTransaction(h.rpcUrl, string(content))
 			if err != nil {
 				return fmt.Errorf("failed to send transaction to blockchain: %w", err)
