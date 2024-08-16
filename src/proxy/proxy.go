@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/korayakpinar/network/src/handler"
+	"github.com/rs/cors"
 )
 
 // Proxy represents the proxy server.
@@ -43,6 +44,10 @@ type TxInfo struct {
 	Threshold     int    `json:"threshold"`
 }
 
+type RecentTransaction struct {
+	Hash string `json:"hash"`
+}
+
 // NewProxy creates a new Proxy instance.
 func NewProxy(handler *handler.Handler, rpcURL, port string) *Proxy {
 	return &Proxy{
@@ -57,8 +62,18 @@ func (p *Proxy) Start() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", p.proxyHandler)
 	r.HandleFunc("/tx/{txHash}", p.txStatusHandler)
+	r.HandleFunc("/recent-transactions", p.recentTransactionsHandler)
+
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders: []string{"Content-Type", "Accept", "Authorization"},
+	})
+
+	handler := c.Handler(r)
+
 	log.Printf("Proxy server is running on port %s", p.Port)
-	log.Fatal(http.ListenAndServe(":"+p.Port, r))
+	log.Fatal(http.ListenAndServe(":"+p.Port, handler))
 }
 
 // txStatusHandler handles requests for transaction status.
@@ -88,6 +103,18 @@ func (p *Proxy) txStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)
+}
+
+func (p *Proxy) recentTransactionsHandler(w http.ResponseWriter, r *http.Request) {
+	var recentTxs []RecentTransaction
+	txs := p.Handler.GetRecentTransactions()
+
+	for _, tx := range txs {
+		recentTxs = append(recentTxs, RecentTransaction{Hash: tx.Header.Hash})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(recentTxs)
 }
 
 // proxyHandler handles incoming HTTP requests and forwards them to the RPC server.
