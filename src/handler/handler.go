@@ -330,16 +330,6 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 	log.Println("Handling encrypted batch")
 	encBatchMsg := msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch
 
-	if encBatchMsg.Header.LeaderID == ourIndex {
-		log.Println("Ignoring own batch")
-		return nil
-	}
-
-	if encBatchMsg.Header.LeaderID != *leaderIndex {
-		log.Printf("Ignoring batch from non-leader (received: %d, expected: %d)", encBatchMsg.Header.LeaderID, *leaderIndex)
-		return nil
-	}
-
 	var txHashes []string
 	for _, encTx := range encBatchMsg.Body.Transactions {
 		txHashes = append(txHashes, string(encTx.Hash))
@@ -348,6 +338,9 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 			if err != nil {
 				return fmt.Errorf("failed to partially decrypt transaction: %w", err)
 			}
+
+			h.mempool.AddPartialDecryption(encTx.Hash, h.ourIndex, partDec)
+			fmt.Printf("Partial decryption added for transaction: %s\n", encTx.Hash)
 
 			newMessage := &message.Message{
 				Message: &message.Message_PartialDecryption{
@@ -370,6 +363,17 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 			}
 		}
 	}
+
+	if encBatchMsg.Header.LeaderID == ourIndex {
+		log.Println("Ignoring own batch")
+		return nil
+	}
+
+	if encBatchMsg.Header.LeaderID != *leaderIndex {
+		log.Printf("Ignoring batch from non-leader (received: %d, expected: %d)", encBatchMsg.Header.LeaderID, *leaderIndex)
+		return nil
+	}
+
 	h.mempool.IncludeEncryptedTxs(txHashes)
 
 	*leaderIndex++
