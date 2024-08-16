@@ -340,6 +340,7 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 			}
 
 			h.mempool.AddPartialDecryption(encTx.Hash, h.ourIndex, partDec)
+
 			fmt.Printf("Partial decryption added for transaction: %s\n", encTx.Hash)
 
 			newMessage := &message.Message{
@@ -509,6 +510,11 @@ func (h *Handler) CheckTransactionDecrypted(hash string) bool {
 func (h *Handler) CheckTransactionProposed(hash string) bool {
 	incTx := h.mempool.GetIncludedTransaction(hash)
 	return incTx != nil
+}
+
+func (h *Handler) GetRecentTransactions() []*types.EncryptedTransaction {
+	recentTxs := h.mempool.GetIncludedTransactions()
+	return recentTxs
 }
 
 func (h *Handler) GetPartialDecryptionCount(hash string) int {
