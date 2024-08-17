@@ -359,7 +359,7 @@ func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan ch
 	// Create a new PubSub service using the GossipSub router
 	opts := []pubsub.Option{
 		pubsub.WithMessageAuthor(cli.Host.ID()),
-		pubsub.WithStrictSignatureVerification(true),
+		pubsub.WithStrictSignatureVerification(false),
 		/* pubsub.WithAppSpecificRpcInspector(inspector), */
 	}
 

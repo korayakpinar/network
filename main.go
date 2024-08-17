@@ -71,8 +71,8 @@ func main() {
 	bearerToken := string(bearerTokenBytes)
 
 	connmgr, err := connmgr.NewConnManager(
-		0,   // Lowwater
-		250, // HighWater,
+		0,  // Lowwater
+		25, // HighWater,
 		connmgr.WithGracePeriod(time.Minute),
 	)
 	if err != nil {
@@ -94,10 +94,10 @@ func main() {
 		// libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", *listenerPort)),
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 		libp2p.Identity(priv),
-		libp2p.EnableHolePunching(),
-		libp2p.NATPortMap(),
+		//libp2p.EnableHolePunching(),
+		//libp2p.NATPortMap(),
 		libp2p.ConnectionManager(connmgr),
-		libp2p.EnableNATService(),
+		//libp2p.EnableNATService(),
 		libp2p.Routing(newDHT),
 		transports,
 		libp2p.DisableMetrics(),
