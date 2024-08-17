@@ -1,13 +1,14 @@
 package client
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
+	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -27,7 +28,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	dutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
 )
@@ -205,7 +205,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 		// Decode the BLS Public Key from JSON
 		if err := json.Unmarshal([]byte(keyJSON), &result); err != nil {
-			fmt.Println("Hata:", err)
+			fmt.Println("Error:", err)
 			return
 		}
 
@@ -223,6 +223,33 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	fmt.Println("Starting the client...")
 	var topicHandle *pubsub.Topic
 	errChan := make(chan error, 4)
+
+	peerAddresses := []string{}
+
+	f, err := os.Open("ids")
+	if err != nil {
+		panic(err)
+	}
+	r := bufio.NewScanner(f)
+	r.Split(bufio.ScanLines)
+	i := 0
+	for r.Scan() {
+		text := r.Text()
+		fmt.Println(text)
+		if text == cli.Host.ID().String() {
+			i += 1
+			continue
+		}
+		// 127.0.0.1 is for the debug purposes, so is the 40001 + i
+		addr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", 4001+i, text) //i+2, text)
+		peerAddresses = append(peerAddresses, addr)
+		i += 1
+	}
+
+	if err := cli.connectToPeers(ctx, peerAddresses); err != nil {
+		log.Panicln("Failed to connect to specified peers:", err)
+		return
+	}
 
 	// Start the discovery
 	go cli.startDiscovery(ctx, topicName, errChan)
@@ -255,14 +282,29 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 
 }
 
+func (cli *Client) connectToPeers(ctx context.Context, peerAddresses []string) error {
+	for _, peerAddr := range peerAddresses {
+		addrInfo, err := peer.AddrInfoFromString(peerAddr)
+		if err != nil {
+			return fmt.Errorf("failed to parse peer address: %v", err)
+		}
+		if err := cli.Host.Connect(ctx, *addrInfo); err != nil {
+			fmt.Printf("Failed to connect to peer %s: %v\n", addrInfo.ID, err)
+		} else {
+			fmt.Printf("Connected to peer %s\n", addrInfo.ID)
+		}
+	}
+	return nil
+}
+
 func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan chan error) {
 	//Start mDNS discovery
-	notifee := &discoveryNotifee{h: cli.Host, ctx: ctx}
-	mdns := mdns.NewMdnsService(cli.Host, "", notifee)
-	if err := mdns.Start(); err != nil {
-		errChan <- err
-		return
-	}
+	/* 	notifee := &discoveryNotifee{h: cli.Host, ctx: ctx}
+	   	mdns := mdns.NewMdnsService(cli.Host, "", notifee)
+	   	if err := mdns.Start(); err != nil {
+	   		errChan <- err
+	   		return
+	   	} */
 
 	// Start the DHT
 	err := initDHT(ctx, cli)
@@ -276,7 +318,7 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 	dutil.Advertise(ctx, routingDiscovery, topicName)
 
 	// Look for others who have announced and attempt to connect to them
-	anyConnected := false
+	anyConnected := true
 	for !anyConnected {
 		fmt.Println("Searching for peers...")
 		peerChan, err := routingDiscovery.FindPeers(ctx, topicName)
@@ -351,7 +393,7 @@ func initDHT(ctx context.Context, cli *Client) error {
 	// client because we want each peer to maintain its own local copy of the
 	// DHT, so that the bootstrapping node of the DHT can go down without
 	// inhibiting future peer discovery.
-	kademliaDHT := cli.DHT
+	/* kademliaDHT := cli.DHT
 
 	if err := kademliaDHT.Bootstrap(ctx); err != nil {
 		panic(err)
@@ -368,6 +410,13 @@ func initDHT(ctx context.Context, cli *Client) error {
 		}()
 	}
 	wg.Wait()
+
+	return nil */
+	kademliaDHT := cli.DHT
+
+	if err := kademliaDHT.Bootstrap(ctx); err != nil {
+		panic(err)
+	}
 
 	return nil
 }
