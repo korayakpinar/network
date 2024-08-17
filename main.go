@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 )
 
 var (
@@ -28,7 +29,7 @@ var (
 	committeeSize   = flag.Uint64("committeeSize", 32, "Size of the committee")
 	ipfsGatewayURL  = flag.String("ipfsGatewayURL", "", "URL of the IPFS gateway server")
 	bearerTokenFile = flag.String("bearerToken", "", "Bearer token path for the IPFS gateway server")
-	listenerPort    = flag.Uint64("listener", 4001, "listener")
+	// listenerPort    = flag.Uint64("listener", 4001, "listener")
 )
 
 func main() {
@@ -85,14 +86,21 @@ func main() {
 		return dht, err
 	}
 
+	transports := libp2p.ChainOptions(
+		libp2p.Transport(tcp.NewTCPTransport),
+	)
+
 	h, err := libp2p.New(
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", *listenerPort)),
+		// libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", *listenerPort)),
+		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 		libp2p.Identity(priv),
 		libp2p.EnableHolePunching(),
 		libp2p.NATPortMap(),
 		libp2p.ConnectionManager(connmgr),
 		libp2p.EnableNATService(),
 		libp2p.Routing(newDHT),
+		transports,
+		libp2p.DisableMetrics(),
 	)
 	if err != nil {
 		panic(err)

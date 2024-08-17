@@ -1,14 +1,13 @@
 package client
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
-	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -28,8 +27,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
-	dutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
+	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 )
 
 type Client struct {
@@ -224,7 +222,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	var topicHandle *pubsub.Topic
 	errChan := make(chan error, 4)
 
-	peerAddresses := []string{}
+	/*peerAddresses := []string{}
 
 	f, err := os.Open("ids")
 	if err != nil {
@@ -249,7 +247,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 	if err := cli.connectToPeers(ctx, peerAddresses); err != nil {
 		log.Panicln("Failed to connect to specified peers:", err)
 		return
-	}
+	}*/
 
 	// Start the discovery
 	go cli.startDiscovery(ctx, topicName, errChan)
@@ -299,15 +297,15 @@ func (cli *Client) connectToPeers(ctx context.Context, peerAddresses []string) e
 
 func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan chan error) {
 	//Start mDNS discovery
-	/* 	notifee := &discoveryNotifee{h: cli.Host, ctx: ctx}
-	   	mdns := mdns.NewMdnsService(cli.Host, "", notifee)
-	   	if err := mdns.Start(); err != nil {
-	   		errChan <- err
-	   		return
-	   	} */
+	notifee := &discoveryNotifee{h: cli.Host, ctx: ctx}
+	mdns := mdns.NewMdnsService(cli.Host, "", notifee)
+	if err := mdns.Start(); err != nil {
+		errChan <- err
+		return
+	}
 
 	// Start the DHT
-	err := initDHT(ctx, cli)
+	/*err := initDHT(ctx, cli)
 	if err != nil {
 		errChan <- err
 		return
@@ -315,7 +313,7 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 
 	// Advertisement
 	routingDiscovery := drouting.NewRoutingDiscovery(cli.DHT)
-	dutil.Advertise(ctx, routingDiscovery, topicName)
+	// dutil.Advertise(ctx, routingDiscovery, topicName)
 
 	// Look for others who have announced and attempt to connect to them
 	anyConnected := true
@@ -339,7 +337,7 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 			}
 		}
 	}
-	fmt.Println("Peer discovery complete")
+	fmt.Println("Peer discovery complete")*/
 
 }
 
@@ -382,6 +380,7 @@ func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan ch
 }
 
 func (m *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
+	fmt.Println(pi.Addrs)
 	if m.h.Network().Connectedness(pi.ID) != network.Connected {
 		fmt.Printf("Found %s!\n", pi.ID.ShortString())
 		m.h.Connect(m.ctx, pi)
@@ -393,7 +392,7 @@ func initDHT(ctx context.Context, cli *Client) error {
 	// client because we want each peer to maintain its own local copy of the
 	// DHT, so that the bootstrapping node of the DHT can go down without
 	// inhibiting future peer discovery.
-	/* kademliaDHT := cli.DHT
+	kademliaDHT := cli.DHT
 
 	if err := kademliaDHT.Bootstrap(ctx); err != nil {
 		panic(err)
@@ -411,14 +410,14 @@ func initDHT(ctx context.Context, cli *Client) error {
 	}
 	wg.Wait()
 
-	return nil */
-	kademliaDHT := cli.DHT
+	return nil
+	/*kademliaDHT := cli.DHT
 
 	if err := kademliaDHT.Bootstrap(ctx); err != nil {
 		panic(err)
 	}
 
-	return nil
+	return nil*/
 }
 
 func (cli *Client) GetHandler() *handler.Handler {
