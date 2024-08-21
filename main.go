@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/korayakpinar/network/src/client"
-	"github.com/korayakpinar/network/src/pinata"
+	"github.com/korayakpinar/network/src/ipfs"
 	"github.com/korayakpinar/network/src/utils"
 	"github.com/libp2p/go-libp2p"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
@@ -20,21 +20,21 @@ import (
 )
 
 var (
-	topicName       = flag.String("topic", "test", "Topic name")
-	privKeyPath     = flag.String("privKey", "", "Private key path")
-	apiPort         = flag.String("apiPort", "8081", "Port for the API server")
-	proxyPort       = flag.String("proxyPort", "8082", "Port for the proxy server")
-	rpcURL          = flag.String("rpcURL", "", "URL of the RPC server")
-	contractAddr    = flag.String("contractAddr", "", "Address of the smart contract")
-	committeeSize   = flag.Uint64("committeeSize", 32, "Size of the committee")
-	ipfsGatewayURL  = flag.String("ipfsGatewayURL", "", "URL of the IPFS gateway server")
-	bearerTokenFile = flag.String("bearerToken", "", "Bearer token path for the IPFS gateway server")
+	topicName      = flag.String("topic", "test", "Topic name")
+	privKeyPath    = flag.String("privKey", "", "Private key path")
+	apiPort        = flag.String("apiPort", "8081", "Port for the API server")
+	proxyPort      = flag.String("proxyPort", "8082", "Port for the proxy server")
+	rpcURL         = flag.String("rpcURL", "", "URL of the RPC server")
+	contractAddr   = flag.String("contractAddr", "", "Address of the smart contract")
+	committeeSize  = flag.Uint64("committeeSize", 32, "Size of the committee")
+	ipfsGatewayURL = flag.String("ipfsGatewayURL", "", "URL of the IPFS gateway server")
+	//bearerTokenFile = flag.String("bearerToken", "", "Bearer token path for the IPFS gateway server")
 	// listenerPort    = flag.Uint64("listener", 4001, "listener")
 )
 
 func main() {
 	flag.Parse()
-	if *privKeyPath == "" || *rpcURL == "" || *contractAddr == "" || *ipfsGatewayURL == "" || *bearerTokenFile == "" {
+	if *privKeyPath == "" || *rpcURL == "" || *contractAddr == "" || *ipfsGatewayURL == "" {
 		fmt.Println("Please provide all the required arguments")
 		return
 	}
@@ -57,18 +57,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	file, err = os.Open(*bearerTokenFile)
-	if err != nil {
-		return
-	}
-
-	bearerTokenBytes, err := io.ReadAll(file)
-	if err != nil {
-		return
-	}
-
-	bearerToken := string(bearerTokenBytes)
 
 	connmgr, err := connmgr.NewConnManager(
 		0,  // Lowwater
@@ -107,7 +95,7 @@ func main() {
 	}
 
 	// Initialize the IPFS service
-	ipfsService := pinata.NewIPFSService(bearerToken, *ipfsGatewayURL)
+	ipfsService := ipfs.NewIPFSService(*ipfsGatewayURL)
 
 	// Initialize the client
 	client := client.NewClient(h, dht, ipfsService, *apiPort, *proxyPort, *rpcURL, *contractAddr, privKey, *committeeSize)

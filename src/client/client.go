@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -16,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/korayakpinar/network/src/contracts"
-	"github.com/korayakpinar/network/src/pinata"
+	"github.com/korayakpinar/network/src/ipfs"
 
 	api "github.com/korayakpinar/network/src/crypto"
 	"github.com/korayakpinar/network/src/handler"
@@ -36,7 +35,7 @@ type Client struct {
 	DHT         *kaddht.IpfsDHT
 	Handler     *handler.Handler
 	Proxy       *proxy.Proxy
-	IPFSService *pinata.IPFSService
+	IPFSService *ipfs.IPFSService
 
 	signers       *[]handler.Signer
 	proxyPort     string
@@ -52,7 +51,7 @@ type discoveryNotifee struct {
 	ctx context.Context
 }
 
-func NewClient(h host.Host, dht *kaddht.IpfsDHT, ipfsService *pinata.IPFSService, apiPort, proxyPort, rpcUrl, contractAddr, privKey string, committeSize uint64) *Client {
+func NewClient(h host.Host, dht *kaddht.IpfsDHT, ipfsService *ipfs.IPFSService, apiPort, proxyPort, rpcUrl, contractAddr, privKey string, committeSize uint64) *Client {
 	signerArr := make([]handler.Signer, 0)
 	return &Client{h, nil, dht, nil, nil, ipfsService, &signerArr, proxyPort, rpcUrl, contractAddr, privKey, apiPort, committeSize}
 }
@@ -139,11 +138,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 			return
 		}
 
-		// Encode the BLS Public Key
-		key := map[string]interface{}{
-			"data": blsPubKey,
-		}
-		resp, err := cli.IPFSService.UploadJSON(key, "blsPubKey")
+		cid, err := cli.IPFSService.UploadKey(blsPubKey)
 
 		if err != nil {
 			log.Panicln("Couldn't upload the BLS Public Key to IPFS, error: ", err)
@@ -151,7 +146,7 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		}
 
 		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return operatorsContract.SubmitBlsKeyCID(auth, resp.IpfsHash)
+			return operatorsContract.SubmitBlsKeyCID(auth, cid)
 		})
 		if err != nil {
 			log.Panicln("Submit BLS Public Key transaction couldn't be successful, error: ", err)
@@ -192,23 +187,14 @@ func (cli *Client) Start(ctx context.Context, topicName string) {
 		}
 
 		// Get the BLS Public Key from IPFS
-		keyJSON, err := cli.IPFSService.GetFileByCID(keyCID)
+		key, err := cli.IPFSService.GetKeyByCID(keyCID)
 		if err != nil {
 			log.Panicln("Couldn't get the BLS Pub Key from IPFS, error: ", err)
 			return
 		}
 
-		// Create a map to store the JSON data
-		var result map[string][]byte
-
-		// Decode the BLS Public Key from JSON
-		if err := json.Unmarshal([]byte(keyJSON), &result); err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-
 		// Take the BLS Public Key from the JSON
-		signerKey := result["data"]
+		signerKey := key
 
 		if operator.Operator == auth.From {
 			ourIndex = big.NewInt(int64(i))
