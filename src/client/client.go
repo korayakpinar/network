@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"strings"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -15,11 +15,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/korayakpinar/network/src/contracts"
-	"github.com/korayakpinar/network/src/ipfs"
+	"github.com/korayakpinar/network/src/utils"
 
 	api "github.com/korayakpinar/network/src/crypto"
 	"github.com/korayakpinar/network/src/handler"
 
+	"github.com/korayakpinar/network/src/ipfs"
 	"github.com/korayakpinar/network/src/proxy"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -27,362 +28,410 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	drouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	dutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
 )
 
 type Client struct {
-	Host        host.Host
-	PubSub      *pubsub.PubSub
-	DHT         *kaddht.IpfsDHT
-	Handler     *handler.Handler
-	Proxy       *proxy.Proxy
-	IPFSService *ipfs.IPFSService
-
-	signers       *[]handler.Signer
-	proxyPort     string
-	rpcUrl        string
-	contractAddr  string
-	privKey       string
-	apiPort       string
-	committeeSize uint64
-}
-
-type discoveryNotifee struct {
-	h   host.Host
-	ctx context.Context
+	Host              host.Host
+	PubSub            *pubsub.PubSub
+	DHT               *kaddht.IpfsDHT
+	Handler           *handler.Handler
+	Proxy             *proxy.Proxy
+	IPFSService       *ipfs.IPFSService
+	signers           *[]handler.Signer
+	proxyPort         string
+	rpcUrl            string
+	contractAddr      string
+	privKey           string
+	apiPort           string
+	committeeSize     uint64
+	ethClient         *ethclient.Client
+	operatorsContract *contracts.Operators
+	auth              *bind.TransactOpts
 }
 
 func NewClient(h host.Host, dht *kaddht.IpfsDHT, ipfsService *ipfs.IPFSService, apiPort, proxyPort, rpcUrl, contractAddr, privKey string, committeSize uint64) *Client {
 	signerArr := make([]handler.Signer, 0)
-	return &Client{h, nil, dht, nil, nil, ipfsService, &signerArr, proxyPort, rpcUrl, contractAddr, privKey, apiPort, committeSize}
+	return &Client{
+		Host:          h,
+		DHT:           dht,
+		IPFSService:   ipfsService,
+		signers:       &signerArr,
+		proxyPort:     proxyPort,
+		rpcUrl:        rpcUrl,
+		contractAddr:  contractAddr,
+		privKey:       privKey,
+		apiPort:       apiPort,
+		committeeSize: committeSize,
+	}
 }
 
-func (cli *Client) Start(ctx context.Context, topicName string) {
+func (cli *Client) Initialize(ctx context.Context) error {
+	var err error
 
-	// Initialize ethClient and register the operator
-	ethClient, err := ethclient.Dial(cli.rpcUrl)
+	cli.ethClient, err = ethclient.Dial(cli.rpcUrl)
 	if err != nil {
-		log.Panicln("Couldn't dial to rpc, error: ", err)
-		return
+		return fmt.Errorf("couldn't dial to rpc: %w", err)
 	}
 
 	operatorsAddr := common.HexToAddress(cli.contractAddr)
-	operatorsContract, err := contracts.NewOperators(operatorsAddr, ethClient)
+	cli.operatorsContract, err = contracts.NewOperators(operatorsAddr, cli.ethClient)
 	if err != nil {
-		log.Panicln("Couldn't create operators contract, error: ", err)
-		return
+		return fmt.Errorf("couldn't create operators contract: %w", err)
 	}
 
 	ecdsaPrivKey, err := crypto.HexToECDSA(cli.privKey)
 	if err != nil {
-		log.Panicln("Couldn't get ECDSA private key from hex, error: ", err)
-		return
+		return fmt.Errorf("couldn't get ECDSA private key from hex: %w", err)
 	}
 
-	chainID, err := ethClient.ChainID(context.Background())
+	chainID, err := cli.ethClient.ChainID(ctx)
 	if err != nil {
-		log.Panicln("Couldn't get chain id from the RPC, error: ", err)
-		return
+		return fmt.Errorf("couldn't get chain id from the RPC: %w", err)
 	}
 
-	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID)
+	cli.auth, err = bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID)
 	if err != nil {
-		log.Panicln("Couldn't get the keyed transactor, error: ", err)
-		return
+		return fmt.Errorf("couldn't get the keyed transactor: %w", err)
 	}
 
-	registered, err := operatorsContract.IsRegistered(nil, auth.From)
-	if err != nil {
-		log.Panicln("Is registered call went wrong, error: ", err)
-		return
-	}
+	return nil
+}
 
-	api := api.NewCrypto(cli.apiPort)
+func (cli *Client) Bootstrap(ctx context.Context) error {
+	attempt := 0
+	minDelay := time.Second * 5
+	maxDelay := time.Second * 30
 
-	if !registered {
+	for {
+		attempt++
+		err := cli.bootstrapAttempt(ctx)
+		if err == nil {
+			return nil
+		}
+		log.Printf("Bootstrap attempt %d failed: %v", attempt, err)
 
-		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return operatorsContract.RegisterOperator(auth)
-		})
-
-		if err != nil {
-			log.Panicln("Registration transaction couldn't be successful, error: ", err)
-			return
+		delay := time.Duration(rand.Int63n(int64(maxDelay-minDelay))) + minDelay
+		log.Printf("Retrying in %v...", delay)
+		select {
+		case <-time.After(delay):
+			// Continue with the next iteration
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 
-		// Wait for the operator to be registered
-		waitForTxConfirmation(ethClient, tx, 2)
+		// Increase the delay range for the next attempt, up to a maximum
+		if maxDelay < time.Minute*5 {
+			maxDelay += time.Second * 30
+		}
+		if minDelay < time.Minute {
+			minDelay += time.Second * 5
+		}
+	}
+}
+
+func (cli *Client) bootstrapAttempt(ctx context.Context) error {
+	if err := cli.registerOperator(ctx); err != nil {
+		return fmt.Errorf("failed to register operator: %w", err)
+	}
+
+	if err := cli.submitBLSKey(ctx); err != nil {
+		return fmt.Errorf("failed to submit BLS key: %w", err)
+	}
+
+	if err := cli.waitForAllOperators(ctx); err != nil {
+		return fmt.Errorf("failed to wait for all operators: %w", err)
+	}
+
+	return nil
+}
+
+func (cli *Client) registerOperator(ctx context.Context) error {
+	registered, err := cli.operatorsContract.IsRegistered(nil, cli.auth.From)
+	if err != nil {
+		return fmt.Errorf("is registered call went wrong: %w", err)
+	}
+
+	if !registered {
+		tx, err := utils.ExecuteTransactionWithRetry(cli.ethClient, cli.auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return cli.operatorsContract.RegisterOperator(auth)
+		})
+		if err != nil {
+			return fmt.Errorf("registration transaction couldn't be successful: %w", err)
+		}
+
+		if err := utils.WaitForTxConfirmationWithRetry(ctx, cli.ethClient, tx, 2); err != nil {
+			return fmt.Errorf("failed to wait for registration confirmation: %w", err)
+		}
 
 		log.Println("Operator registered successfully")
-
+	} else {
+		log.Println("Operator already registered")
 	}
-	log.Println("Operator registered successfully or already registered")
 
-	submissions, err := operatorsContract.HasSubmittedBLSKey(nil, auth.From)
+	return cli.waitForOperatorIndex(ctx)
+}
+
+func (cli *Client) waitForOperatorIndex(ctx context.Context) error {
+	minDelay := time.Second
+	maxDelay := time.Second * 10
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			ourIndex, err := cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+			if err == nil {
+				log.Printf("Our operator index: %d\n", ourIndex)
+				return nil
+			}
+			log.Println("Waiting for operator index to be available...")
+			delay := time.Duration(rand.Int63n(int64(maxDelay-minDelay))) + minDelay
+			time.Sleep(delay)
+
+			// Increase the delay range for the next attempt, up to a maximum
+			if maxDelay < time.Minute {
+				maxDelay += time.Second * 5
+			}
+			if minDelay < time.Second*30 {
+				minDelay += time.Second
+			}
+		}
+	}
+}
+
+func (cli *Client) submitBLSKey(ctx context.Context) error {
+	submissions, err := cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
 	if err != nil {
-		log.Panicln("Couldn't get the BLS Key submission status from the RPC, error: ", err)
-		return
+		return fmt.Errorf("couldn't get the BLS Key submission status: %w", err)
 	}
 
 	if !submissions {
-		ourIndex, err := operatorsContract.GetOperatorIndex(nil, auth.From)
+		ourIndex, err := cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
 		if err != nil {
-			log.Panicln("Get operator by index call went wrong, error: ", err)
-			return
+			return fmt.Errorf("get operator by index call went wrong: %w", err)
 		}
 
-		// Get and deploy BLS Public Key
+		api := api.NewCrypto(cli.apiPort)
 		blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
-		fmt.Println("BLS Public Key: ", blsPubKey)
 		if err != nil {
-			log.Panicln("API couldn't send the BLS Public Key, error: ", err)
-			return
+			return fmt.Errorf("API couldn't send the BLS Public Key: %w", err)
 		}
 
-		cid, err := cli.IPFSService.UploadKey(blsPubKey)
-
+		cid, err := cli.uploadAndVerifyBLSKey(ctx, blsPubKey)
 		if err != nil {
-			log.Panicln("Couldn't upload the BLS Public Key to IPFS, error: ", err)
-			return
+			return fmt.Errorf("failed to upload and verify BLS key: %w", err)
 		}
 
-		tx, err := executeTransactionWithRetry(ethClient, auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return operatorsContract.SubmitBlsKeyCID(auth, cid)
+		tx, err := utils.ExecuteTransactionWithRetry(cli.ethClient, cli.auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
+			return cli.operatorsContract.SubmitBlsKeyCID(auth, cid)
 		})
 		if err != nil {
-			log.Panicln("Submit BLS Public Key transaction couldn't be successful, error: ", err)
-			return
+			return fmt.Errorf("submit BLS Public Key transaction couldn't be successful: %w", err)
 		}
 
-		// Wait for the BLS Public Key to be submitted
-		waitForTxConfirmation(ethClient, tx, 2)
+		if err := utils.WaitForTxConfirmationWithRetry(ctx, cli.ethClient, tx, 2); err != nil {
+			return fmt.Errorf("failed to wait for BLS key submission confirmation: %w", err)
+		}
+
+		log.Println("BLS Public Key submitted successfully")
+	} else {
+		log.Println("BLS Public Key already submitted")
 	}
 
-	log.Println("BLS Public Key submitted successfully or already submitted")
+	return cli.waitForBLSKeySubmission(ctx)
+}
 
-	var operatorCount *big.Int = big.NewInt(0)
-	for operatorCount.Int64() < int64(cli.committeeSize)-1 {
-		operatorCount, err = operatorsContract.GetOperatorCount(nil)
-		if err != nil {
-			log.Panicln("Couldn't get the operator count from the RPC, error: ", err)
-			return
+func (cli *Client) waitForBLSKeySubmission(ctx context.Context) error {
+	retryDelay := time.Second
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			submitted, err := cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
+			if err == nil && submitted {
+				return nil
+			}
+			log.Println("Waiting for BLS key submission to be recognized...")
+			time.Sleep(retryDelay)
+			retryDelay *= 2 // Exponential backoff
+			if retryDelay > time.Minute {
+				retryDelay = time.Minute
+			}
 		}
-		log.Println("Waiting for all operators to be registered...")
+	}
+}
+
+func (cli *Client) uploadAndVerifyBLSKey(ctx context.Context, blsPubKey []byte) (string, error) {
+	cid, err := cli.IPFSService.UploadKey(blsPubKey)
+	if err != nil {
+		return "", fmt.Errorf("couldn't upload the BLS Public Key to IPFS: %w", err)
+	}
+
+	for i := 0; i < 5; i++ { // Try 5 times
+		time.Sleep(time.Duration(i) * time.Second) // Exponential backoff
+
+		retrievedKey, err := cli.IPFSService.GetKeyByCID(cid)
+		if err == nil && string(retrievedKey) == string(blsPubKey) {
+			return cid, nil
+		}
+		log.Printf("Failed to verify uploaded key, retrying... (Attempt %d)\n", i+1)
+	}
+
+	return "", fmt.Errorf("failed to verify uploaded BLS key after multiple attempts")
+}
+
+func (cli *Client) waitForAllOperators(ctx context.Context) error {
+	var operatorCount *big.Int
+	var err error
+	for {
+		operatorCount, err = cli.operatorsContract.GetOperatorCount(nil)
+		if err != nil {
+			return fmt.Errorf("couldn't get the operator count: %w", err)
+		}
+		if operatorCount.Int64() >= int64(cli.committeeSize-1) {
+			break
+		}
+		log.Printf("Waiting for all operators to be registered (%d/%d)...\n", operatorCount.Int64(), cli.committeeSize)
 		time.Sleep(3 * time.Second)
 	}
 
-	var ourIndex *big.Int
 	var signers []handler.Signer
 	for i := 0; i < int(operatorCount.Int64()); i++ {
-		operator, err := operatorsContract.Operators(nil, big.NewInt(int64(i)))
+		operator, err := cli.operatorsContract.Operators(nil, big.NewInt(int64(i)))
 		if err != nil {
-			log.Panicln("Couldn't get the operators from the RPC, error: ", err)
-			return
+			return fmt.Errorf("couldn't get the operators: %w", err)
 		}
 
-		// Get the BLS Public Key CID from the contract
-		keyCID, err := operatorsContract.GetBLSPubKeyCIDByIndex(nil, big.NewInt(int64(i)))
+		keyCID, err := cli.operatorsContract.GetBLSPubKeyCIDByIndex(nil, big.NewInt(int64(i)))
 		if err != nil {
-			log.Panicln("Couldn't get the BLS Pub Key by Index from the contract, error: ", err)
-			return
+			return fmt.Errorf("couldn't get the BLS Pub Key by Index: %w", err)
 		}
 
-		// Get the BLS Public Key from IPFS
 		key, err := cli.IPFSService.GetKeyByCID(keyCID)
 		if err != nil {
-			log.Panicln("Couldn't get the BLS Pub Key from IPFS, error: ", err)
-			return
+			return fmt.Errorf("couldn't get the BLS Pub Key from IPFS: %w", err)
 		}
 
-		// Take the BLS Public Key from the JSON
-		signerKey := key
-
-		if operator.Operator == auth.From {
-			ourIndex = big.NewInt(int64(i))
-		}
-		newSigner := handler.NewSigner(operator.Operator, signerKey)
+		newSigner := handler.NewSigner(operator.Operator, key)
 		signers = append(signers, newSigner)
 	}
 
-	fmt.Println("All operators registered successfully, ", len(signers))
-	fmt.Println("Starting the client...")
-	var topicHandle *pubsub.Topic
+	cli.signers = &signers
+	log.Printf("All operators registered successfully: %d\n", len(signers))
+
+	return nil
+}
+
+func (cli *Client) Start(ctx context.Context, topicName string) error {
+	log.Println("Starting the client...")
+
 	errChan := make(chan error, 4)
-
-	/*peerAddresses := []string{}
-
-	f, err := os.Open("ids")
-	if err != nil {
-		panic(err)
-	}
-	r := bufio.NewScanner(f)
-	r.Split(bufio.ScanLines)
-	i := 0
-	for r.Scan() {
-		text := r.Text()
-		fmt.Println(text)
-		if text == cli.Host.ID().String() {
-			i += 1
-			continue
-		}
-		// 127.0.0.1 is for the debug purposes, so is the 40001 + i
-		addr := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", 4001+i, text) //i+2, text)
-		peerAddresses = append(peerAddresses, addr)
-		i += 1
-	}
-
-	if err := cli.connectToPeers(ctx, peerAddresses); err != nil {
-		log.Panicln("Failed to connect to specified peers:", err)
-		return
-	}*/
 
 	// Start the discovery
 	go cli.startDiscovery(ctx, topicName, errChan)
 
 	// Start the pubsub
-	topicHandle = cli.startPubsub(ctx, topicName, errChan)
+	topicHandle, err := cli.startPubsub(ctx, topicName)
+	if err != nil {
+		return fmt.Errorf("failed to start pubsub: %w", err)
+	}
 
 	// Subscribe to the topic
 	sub, err := topicHandle.Subscribe()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to subscribe to topic: %w", err)
 	}
 
 	// Initialize the handler and start it
-	handler := handler.NewHandler(sub, topicHandle, &signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, ourIndex.Uint64(), cli.committeeSize/2)
-	cli.Handler = handler
-	go handler.Start(ctx, errChan)
+	ourIndex, err := cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+	if err != nil {
+		return fmt.Errorf("couldn't get our operator index: %w", err)
+	}
+
+	cli.Handler = handler.NewHandler(sub, topicHandle, cli.signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, ourIndex.Uint64(), cli.committeeSize/2)
+	go cli.Handler.Start(ctx, errChan)
 
 	// Start the proxy server
-	proxy := proxy.NewProxy(handler, cli.rpcUrl, cli.proxyPort)
-	cli.Proxy = proxy
-	go proxy.Start()
+	cli.Proxy = proxy.NewProxy(cli.Handler, cli.rpcUrl, cli.proxyPort)
+	go cli.Proxy.Start()
 
 	select {
 	case err := <-errChan:
-		log.Fatal("Error:", err)
-	default:
-		// do nothing
+		return fmt.Errorf("error in client components: %w", err)
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-
 }
 
-func (cli *Client) connectToPeers(ctx context.Context, peerAddresses []string) error {
-	for _, peerAddr := range peerAddresses {
-		addrInfo, err := peer.AddrInfoFromString(peerAddr)
-		if err != nil {
-			return fmt.Errorf("failed to parse peer address: %v", err)
-		}
-		if err := cli.Host.Connect(ctx, *addrInfo); err != nil {
-			fmt.Printf("Failed to connect to peer %s: %v\n", addrInfo.ID, err)
-		} else {
-			fmt.Printf("Connected to peer %s\n", addrInfo.ID)
-		}
-	}
-	return nil
-}
-
-func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan chan error) {
-	//Start mDNS discovery
+func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan chan<- error) {
+	// Start mDNS discovery
 	notifee := &discoveryNotifee{h: cli.Host, ctx: ctx}
 	mdns := mdns.NewMdnsService(cli.Host, "", notifee)
 	if err := mdns.Start(); err != nil {
-		errChan <- err
+		errChan <- fmt.Errorf("failed to start mDNS: %w", err)
 		return
 	}
 
 	// Start the DHT
-	/*err := initDHT(ctx, cli)
-	if err != nil {
-		errChan <- err
+	if err := cli.initDHT(ctx); err != nil {
+		errChan <- fmt.Errorf("failed to initialize DHT: %w", err)
 		return
 	}
 
-	// Advertisement
+	// Use a routing discovery to find peers
 	routingDiscovery := drouting.NewRoutingDiscovery(cli.DHT)
-	// dutil.Advertise(ctx, routingDiscovery, topicName)
+	dutil.Advertise(ctx, routingDiscovery, topicName)
 
-	// Look for others who have announced and attempt to connect to them
-	anyConnected := true
-	for !anyConnected {
-		fmt.Println("Searching for peers...")
-		peerChan, err := routingDiscovery.FindPeers(ctx, topicName)
-		if err != nil {
-			errChan <- err
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
 			return
-		}
-		for peer := range peerChan {
-			if peer.ID == cli.Host.ID() {
-				continue // No self connection
-			}
-			err := cli.Host.Connect(ctx, peer)
+		case <-ticker.C:
+			peers, err := routingDiscovery.FindPeers(ctx, topicName)
 			if err != nil {
-				fmt.Printf("Failed connecting to %s, error: %s\n", peer.ID, err)
-			} else {
-				fmt.Println("Connected to:", peer.ID)
-				anyConnected = true
+				log.Printf("Error finding peers: %v", err)
+				continue
+			}
+			for peer := range peers {
+				if peer.ID == cli.Host.ID() {
+					continue // Skip self
+				}
+				if err := cli.Host.Connect(ctx, peer); err != nil {
+					log.Printf("Failed connecting to %s: %v", peer.ID, err)
+				}
 			}
 		}
 	}
-	fmt.Println("Peer discovery complete")*/
-
 }
 
-func (cli *Client) startPubsub(ctx context.Context, topicName string, errChan chan error) (topic *pubsub.Topic) {
-
-	/* inspector := func(pid peer.ID, rpc *pubsub.RPC) error {
-		ethAddr := utils.IdToEthAddress(pid)
-
-		signers := *cli.Handler.GetSigners()
-		for _, signer := range signers {
-			if signer.GetAddress() == ethAddr {
-				return nil
-			}
-		}
-
-		return errors.New("not a operator")
-	} */
-
+func (cli *Client) startPubsub(ctx context.Context, topicName string) (*pubsub.Topic, error) {
 	// Create a new PubSub service using the GossipSub router
-	opts := []pubsub.Option{
-		pubsub.WithMessageAuthor(cli.Host.ID()),
-		pubsub.WithStrictSignatureVerification(false),
-		/* pubsub.WithAppSpecificRpcInspector(inspector), */
-	}
-
-	ps, err := pubsub.NewGossipSub(ctx, cli.Host, opts...)
+	ps, err := pubsub.NewGossipSub(ctx, cli.Host)
 	if err != nil {
-		errChan <- err
-		return
+		return nil, fmt.Errorf("failed to create pubsub: %w", err)
 	}
 	cli.PubSub = ps
 
-	topicHandle, err := ps.Join(topicName)
+	// Join the topic
+	topic, err := ps.Join(topicName)
 	if err != nil {
-		errChan <- err
-		return
+		return nil, fmt.Errorf("failed to join topic: %w", err)
 	}
 
-	return topicHandle
+	return topic, nil
 }
 
-func (m *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
-	fmt.Println(pi.Addrs)
-	if m.h.Network().Connectedness(pi.ID) != network.Connected {
-		fmt.Printf("Found %s!\n", pi.ID.ShortString())
-		m.h.Connect(m.ctx, pi)
+func (cli *Client) initDHT(ctx context.Context) error {
+	if err := cli.DHT.Bootstrap(ctx); err != nil {
+		return fmt.Errorf("failed to bootstrap DHT: %w", err)
 	}
-}
 
-func initDHT(ctx context.Context, cli *Client) error {
-	// Start a DHT, for use in peer discovery. We can't just make a new DHT
-	// client because we want each peer to maintain its own local copy of the
-	// DHT, so that the bootstrapping node of the DHT can go down without
-	// inhibiting future peer discovery.
-	kademliaDHT := cli.DHT
-
-	if err := kademliaDHT.Bootstrap(ctx); err != nil {
-		panic(err)
-	}
 	var wg sync.WaitGroup
 	for _, peerAddr := range kaddht.DefaultBootstrapPeers {
 		peerinfo, _ := peer.AddrInfoFromP2pAddr(peerAddr)
@@ -390,120 +439,29 @@ func initDHT(ctx context.Context, cli *Client) error {
 		go func() {
 			defer wg.Done()
 			if err := cli.Host.Connect(ctx, *peerinfo); err != nil {
-				fmt.Println("Bootstrap warning:", err)
+				log.Printf("Error connecting to bootstrap peer %s: %v", peerinfo.ID, err)
 			}
 		}()
 	}
 	wg.Wait()
 
 	return nil
-	/*kademliaDHT := cli.DHT
+}
 
-	if err := kademliaDHT.Bootstrap(ctx); err != nil {
-		panic(err)
+type discoveryNotifee struct {
+	h   host.Host
+	ctx context.Context
+}
+
+func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
+	if n.h.Network().Connectedness(pi.ID) != network.Connected {
+		log.Printf("Discovered new peer %s\n", pi.ID.ShortString())
+		if err := n.h.Connect(n.ctx, pi); err != nil {
+			log.Printf("Failed to connect to peer %s: %v\n", pi.ID.ShortString(), err)
+		}
 	}
-
-	return nil*/
 }
 
 func (cli *Client) GetHandler() *handler.Handler {
 	return cli.Handler
-}
-
-func waitForTxConfirmation(client *ethclient.Client, tx *types.Transaction, blockConfirmations uint64) error {
-	ctx := context.Background()
-	receipt, err := waitForTxReceipt(client, ctx, tx.Hash(), 2*time.Minute)
-	if err != nil {
-		return fmt.Errorf("error waiting for transaction receipt: %v", err)
-	}
-
-	if receipt.Status == 0 {
-		return fmt.Errorf("transaction failed")
-	}
-
-	fmt.Printf("Transaction included in block %d\n", receipt.BlockNumber.Uint64())
-
-	currentBlock, err := client.BlockNumber(ctx)
-	if err != nil {
-		return fmt.Errorf("error getting current block number: %v", err)
-	}
-
-	confirmations := currentBlock - receipt.BlockNumber.Uint64()
-	for confirmations < blockConfirmations {
-		time.Sleep(15 * time.Second)
-		currentBlock, err = client.BlockNumber(ctx)
-		if err != nil {
-			return fmt.Errorf("error getting current block number: %v", err)
-		}
-		confirmations = currentBlock - receipt.BlockNumber.Uint64()
-		fmt.Printf("Current confirmations: %d\n", confirmations)
-	}
-
-	fmt.Printf("Transaction confirmed with %d block confirmations\n", confirmations)
-	return nil
-}
-
-func waitForTxReceipt(client *ethclient.Client, ctx context.Context, txHash common.Hash, timeout time.Duration) (*types.Receipt, error) {
-	timeoutCh := time.After(timeout)
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for {
-		receipt, err := client.TransactionReceipt(ctx, txHash)
-		if err == nil {
-			return receipt, nil
-		}
-
-		select {
-		case <-timeoutCh:
-			return nil, fmt.Errorf("timeout waiting for transaction receipt")
-		case <-ticker.C:
-			continue
-		}
-	}
-}
-
-func executeTransactionWithRetry(
-	client *ethclient.Client,
-	auth *bind.TransactOpts,
-	txFunc func(*bind.TransactOpts) (*types.Transaction, error),
-) (*types.Transaction, error) {
-	var tx *types.Transaction
-	var err error
-
-	for i := 0; i < 5; i++ { // 5 tries
-		// Check the current nonce and set it in the auth
-		nonce, err := client.PendingNonceAt(context.Background(), auth.From)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get nonce: %v", err)
-		}
-		auth.Nonce = big.NewInt(int64(nonce))
-
-		// Take the suggested gas price
-		gasPrice, err := client.SuggestGasPrice(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("failed to get gas price: %v", err)
-		}
-
-		// Increase gas price by 10%
-		gasPrice = new(big.Int).Mul(gasPrice, big.NewInt(110))
-		gasPrice = new(big.Int).Div(gasPrice, big.NewInt(100))
-		auth.GasPrice = gasPrice
-
-		// Call the transaction function
-		tx, err = txFunc(auth)
-		if err == nil {
-			return tx, nil
-		}
-
-		if !strings.Contains(err.Error(), "replacement transaction underpriced") &&
-			!strings.Contains(err.Error(), "nonce too low") {
-			return nil, err
-		}
-
-		log.Printf("Transaction failed, retrying with updated nonce and higher gas price... (Attempt %d)\n", i+1)
-		time.Sleep(time.Second * 2) // Kısa bir bekleme süresi
-	}
-
-	return nil, fmt.Errorf("failed to execute transaction after multiple attempts: %v", err)
 }

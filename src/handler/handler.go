@@ -81,7 +81,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 					return
 				}
 			}
-			time.Sleep(time.Second) // Prevent tight loop
+			time.Sleep(time.Second / 4) // Prevent tight loop
 		}
 	}
 }
@@ -218,6 +218,7 @@ func (h *Handler) messageHandlingRoutine(ctx context.Context, errChan chan error
 			log.Println("Context cancelled, stopping message handling routine")
 			return
 		default:
+			time.Sleep(time.Second / 4) // Prevent tight loop
 			if err := h.handleNextMessage(ctx, leaderIndex, ourIndex, CommitteSize); err != nil {
 				log.Printf("Error handling message: %v", err)
 				errChan <- err
@@ -283,12 +284,14 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 	partDec := partDecMsg.PartDec
 	sender := partDecMsg.Sender
 	txHash := partDecMsg.TxHash
-	h.mempool.AddPartialDecryption(txHash, sender, partDec)
 
-	// Skip if we are not the first node in the committee
-	if h.ourIndex != 0 {
+	// Skip if we are not the first node in the committee or partial decryptions from us
+	if sender == h.ourIndex || h.ourIndex != 0 {
+		log.Printf("Ignoring partial decryption from us or non-leader: %d", sender)
 		return nil
 	}
+
+	h.mempool.AddPartialDecryption(txHash, sender, partDec)
 
 	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
@@ -439,6 +442,8 @@ func (h *Handler) HandleTransaction(tx string) error {
 		log.Println("Error while calculating the transaction hash: ", err)
 		return err
 	}
+
+	log.Printf("Transaction encrypted successfully, plaintext tx: %s, encrypted tx: %s, tx hash: %s", tx, encResponse.Enc, txHash)
 
 	// Construct the encrypted transaction
 	encTxHeader := &types.EncryptedTxHeader{
@@ -609,7 +614,7 @@ type JSONRPCError struct {
 }
 
 func sendRawTransaction(rpcUrl string, content string) (string, error) {
-	// JSON-RPC isteği oluştur
+	// Create the JSON-RPC request
 	request := JSONRPCRequest{
 		JsonRPC: "2.0",
 		Method:  "eth_sendRawTransaction",
@@ -617,37 +622,37 @@ func sendRawTransaction(rpcUrl string, content string) (string, error) {
 		ID:      1,
 	}
 
-	// İsteği JSON'a dönüştür
+	// Convert the request to JSON
 	jsonRequest, err := json.Marshal(request)
 	if err != nil {
 		return "", fmt.Errorf("JSON encoding error: %v", err)
 	}
 
-	// HTTP POST isteği gönder
+	// Send the request
 	resp, err := http.Post(rpcUrl, "application/json", bytes.NewBuffer(jsonRequest))
 	if err != nil {
 		return "", fmt.Errorf("HTTP POST error: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Yanıtı oku
+	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Response reading error: %v", err)
 	}
 
-	// Yanıtı JSON'dan çöz
+	// Decode the JSON response
 	var response JSONRPCResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return "", fmt.Errorf("JSON decoding error: %v", err)
 	}
 
-	// Hata kontrolü
+	// Check for errors
 	if response.Error != nil {
 		return "", fmt.Errorf("RPC error: %v", response.Error.Message)
 	}
 
-	// İşlem hash'ini döndür
+	// Return the transaction hash
 	return response.Result, nil
 }
