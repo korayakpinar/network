@@ -28,8 +28,6 @@ var (
 	contractAddr   = flag.String("contractAddr", "", "Address of the smart contract")
 	committeeSize  = flag.Uint64("committeeSize", 32, "Size of the committee")
 	ipfsGatewayURL = flag.String("ipfsGatewayURL", "", "URL of the IPFS gateway server")
-	//bearerTokenFile = flag.String("bearerToken", "", "Bearer token path for the IPFS gateway server")
-	// listenerPort    = flag.Uint64("listener", 4001, "listener")
 )
 
 func main() {
@@ -39,32 +37,80 @@ func main() {
 		return
 	}
 
-	file, err := os.Open(*privKeyPath)
+	privKey, err := readPrivateKeyFromFile(*privKeyPath)
 	if err != nil {
+		fmt.Printf("Failed to read private key: %v\n", err)
 		return
 	}
-
-	privKeyBytes, err := io.ReadAll(file)
-	if err != nil {
-		return
-	}
-
-	privKey := string(privKeyBytes)
 
 	ctx := context.Background()
 
+	h, dht, err := setupLibp2p(ctx, privKey)
+	if err != nil {
+		fmt.Printf("Failed to setup libp2p: %v\n", err)
+		return
+	}
+
+	fmt.Println("Host created, ID:", h.ID(), h.Addrs())
+	ethAddr := utils.IdToEthAddress(h.ID())
+	fmt.Println("Pub Addr:", ethAddr)
+
+	// Initialize the IPFS service
+	ipfsService := ipfs.NewIPFSService(*ipfsGatewayURL)
+
+	// Initialize the client
+	client := client.NewClient(h, dht, ipfsService, *apiPort, *proxyPort, *rpcURL, *contractAddr, privKey, *committeeSize)
+
+	// Initialize the client
+	if err := client.Initialize(ctx); err != nil {
+		fmt.Printf("Failed to initialize client: %v\n", err)
+		return
+	}
+
+	// Perform bootstrapping
+	if err := client.Bootstrap(ctx); err != nil {
+		fmt.Printf("Failed to bootstrap: %v\n", err)
+		return
+	}
+
+	// Start the client
+	if err := client.Start(ctx, *topicName); err != nil {
+		fmt.Printf("Client error: %v\n", err)
+		return
+	}
+
+	// Keep the main goroutine alive
+	select {}
+}
+
+func readPrivateKeyFromFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open private key file: %w", err)
+	}
+	defer file.Close()
+
+	privKeyBytes, err := io.ReadAll(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to read private key file: %w", err)
+	}
+
+	return string(privKeyBytes), nil
+}
+
+func setupLibp2p(ctx context.Context, privKey string) (host.Host, *kaddht.IpfsDHT, error) {
 	priv, err := utils.EthToLibp2pPrivKey(privKey)
 	if err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("failed to convert private key: %w", err)
 	}
 
 	connmgr, err := connmgr.NewConnManager(
-		0,  // Lowwater
-		25, // HighWater,
+		100, // Lowwater
+		400, // HighWater,
 		connmgr.WithGracePeriod(time.Minute),
 	)
 	if err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("failed to create connection manager: %w", err)
 	}
 
 	var dht *kaddht.IpfsDHT
@@ -74,38 +120,17 @@ func main() {
 		return dht, err
 	}
 
-	transports := libp2p.ChainOptions(
-		libp2p.Transport(tcp.NewTCPTransport),
-	)
-
 	h, err := libp2p.New(
-		// libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", *listenerPort)),
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 		libp2p.Identity(priv),
-		//libp2p.EnableHolePunching(),
-		//libp2p.NATPortMap(),
 		libp2p.ConnectionManager(connmgr),
-		//libp2p.EnableNATService(),
 		libp2p.Routing(newDHT),
-		transports,
+		libp2p.Transport(tcp.NewTCPTransport),
 		libp2p.DisableMetrics(),
 	)
 	if err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
 
-	// Initialize the IPFS service
-	ipfsService := ipfs.NewIPFSService(*ipfsGatewayURL)
-
-	// Initialize the client
-	client := client.NewClient(h, dht, ipfsService, *apiPort, *proxyPort, *rpcURL, *contractAddr, privKey, *committeeSize)
-
-	fmt.Println("Host created, ID:", h.ID(), h.Addrs())
-	ethAddr := utils.IdToEthAddress(h.ID())
-
-	fmt.Println("Pub Addr:", ethAddr)
-
-	go client.Start(ctx, *topicName)
-
-	select {}
+	return h, dht, nil
 }
