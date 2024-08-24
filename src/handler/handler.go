@@ -73,7 +73,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 			log.Println("Context cancelled, stopping leader routine")
 			return
 		default:
-			log.Printf("Leader check: ourIndex=%d, leaderIndex=%d", ourIndex, *leaderIndex)
+
 			if ourIndex == *leaderIndex {
 				if err := h.performLeaderDuties(ctx, leaderIndex); err != nil {
 					log.Printf("Error performing leader duties: %v", err)
@@ -293,7 +293,7 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 
 	h.mempool.AddPartialDecryption(txHash, sender, partDec)
 
-	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) {
+	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) && !h.CheckTransactionDecrypted(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
 		encTx := h.mempool.GetIncludedTransaction(txHash)
 		encryptedContent := encTx.Body.EncText
@@ -321,7 +321,6 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 			},
 		})
 		log.Printf("Transaction decrypted: %s", txHash)
-		log.Printf("Our index: %d, Leader index: %d", h.ourIndex, leaderIndex)
 		if h.ourIndex == 0 {
 			tx, err := sendRawTransaction(h.rpcUrl, string(content))
 			if err != nil {
@@ -649,7 +648,7 @@ func sendRawTransaction(rpcUrl string, content string) (string, error) {
 	}
 
 	// Check for errors
-	if response.Error != nil {
+	if response.Error != nil && response.Error.Message != "already known" {
 		return "", fmt.Errorf("RPC error: %v", response.Error.Message)
 	}
 
