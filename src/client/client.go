@@ -2,10 +2,12 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -70,13 +72,19 @@ func NewClient(h host.Host, dht *kaddht.IpfsDHT, ipfsService *ipfs.IPFSService, 
 func (cli *Client) Initialize(ctx context.Context) error {
 	var err error
 
-	cli.ethClient, err = ethclient.Dial(cli.rpcUrl)
+	err = cli.executeRPCCallWithRetry(ctx, func() error {
+		cli.ethClient, err = ethclient.Dial(cli.rpcUrl)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("couldn't dial to rpc: %w", err)
 	}
 
 	operatorsAddr := common.HexToAddress(cli.contractAddr)
-	cli.operatorsContract, err = contracts.NewOperators(operatorsAddr, cli.ethClient)
+	err = cli.executeRPCCallWithRetry(ctx, func() error {
+		cli.operatorsContract, err = contracts.NewOperators(operatorsAddr, cli.ethClient)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("couldn't create operators contract: %w", err)
 	}
@@ -86,7 +94,11 @@ func (cli *Client) Initialize(ctx context.Context) error {
 		return fmt.Errorf("couldn't get ECDSA private key from hex: %w", err)
 	}
 
-	chainID, err := cli.ethClient.ChainID(ctx)
+	var chainID *big.Int
+	err = cli.executeRPCCallWithRetry(ctx, func() error {
+		chainID, err = cli.ethClient.ChainID(ctx)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("couldn't get chain id from the RPC: %w", err)
 	}
@@ -102,7 +114,7 @@ func (cli *Client) Initialize(ctx context.Context) error {
 func (cli *Client) Bootstrap(ctx context.Context) error {
 	attempt := 0
 	minDelay := time.Second * 5
-	maxDelay := time.Second * 30
+	maxDelay := time.Second * 10
 
 	for {
 		attempt++
@@ -121,13 +133,6 @@ func (cli *Client) Bootstrap(ctx context.Context) error {
 			return ctx.Err()
 		}
 
-		// Increase the delay range for the next attempt, up to a maximum
-		if maxDelay < time.Minute*5 {
-			maxDelay += time.Second * 30
-		}
-		if minDelay < time.Minute {
-			minDelay += time.Second * 5
-		}
 	}
 }
 
@@ -148,7 +153,13 @@ func (cli *Client) bootstrapAttempt(ctx context.Context) error {
 }
 
 func (cli *Client) registerOperator(ctx context.Context) error {
-	registered, err := cli.operatorsContract.IsRegistered(nil, cli.auth.From)
+	var registered bool
+	var err error
+
+	err = cli.executeRPCCallWithRetry(ctx, func() error {
+		registered, err = cli.operatorsContract.IsRegistered(nil, cli.auth.From)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("is registered call went wrong: %w", err)
 	}
@@ -175,13 +186,18 @@ func (cli *Client) registerOperator(ctx context.Context) error {
 
 func (cli *Client) waitForOperatorIndex(ctx context.Context) error {
 	minDelay := time.Second
-	maxDelay := time.Second * 10
+	maxDelay := time.Second * 5
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			ourIndex, err := cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+			var ourIndex *big.Int
+			err := cli.executeRPCCallWithRetry(ctx, func() error {
+				var err error
+				ourIndex, err = cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+				return err
+			})
 			if err == nil {
 				log.Printf("Our operator index: %d\n", ourIndex)
 				return nil
@@ -190,25 +206,28 @@ func (cli *Client) waitForOperatorIndex(ctx context.Context) error {
 			delay := time.Duration(rand.Int63n(int64(maxDelay-minDelay))) + minDelay
 			time.Sleep(delay)
 
-			// Increase the delay range for the next attempt, up to a maximum
-			if maxDelay < time.Minute {
-				maxDelay += time.Second * 5
-			}
-			if minDelay < time.Second*30 {
-				minDelay += time.Second
-			}
 		}
 	}
 }
 
 func (cli *Client) submitBLSKey(ctx context.Context) error {
-	submissions, err := cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
+	var submissions bool
+	err := cli.executeRPCCallWithRetry(ctx, func() error {
+		var err error
+		submissions, err = cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("couldn't get the BLS Key submission status: %w", err)
 	}
 
 	if !submissions {
-		ourIndex, err := cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+		var ourIndex *big.Int
+		err := cli.executeRPCCallWithRetry(ctx, func() error {
+			var err error
+			ourIndex, err = cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+			return err
+		})
 		if err != nil {
 			return fmt.Errorf("get operator by index call went wrong: %w", err)
 		}
@@ -244,22 +263,23 @@ func (cli *Client) submitBLSKey(ctx context.Context) error {
 }
 
 func (cli *Client) waitForBLSKeySubmission(ctx context.Context) error {
-	retryDelay := time.Second
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			submitted, err := cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
+			var submitted bool
+			err := cli.executeRPCCallWithRetry(ctx, func() error {
+				var err error
+				submitted, err = cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
+				return err
+			})
 			if err == nil && submitted {
 				return nil
 			}
 			log.Println("Waiting for BLS key submission to be recognized...")
-			time.Sleep(retryDelay)
-			retryDelay *= 2 // Exponential backoff
-			if retryDelay > time.Minute {
-				retryDelay = time.Minute
-			}
+
 		}
 	}
 }
@@ -271,7 +291,9 @@ func (cli *Client) uploadAndVerifyBLSKey(ctx context.Context, blsPubKey []byte) 
 	}
 
 	for i := 0; i < 5; i++ { // Try 5 times
-		time.Sleep(time.Duration(i) * time.Second) // Exponential backoff
+		// Random delay between 1 and 5 seconds
+		delay := time.Duration(rand.Intn(4)+1) * time.Second
+		time.Sleep(delay)
 
 		retrievedKey, err := cli.IPFSService.GetKeyByCID(cid)
 		if err == nil && string(retrievedKey) == string(blsPubKey) {
@@ -287,7 +309,10 @@ func (cli *Client) waitForAllOperators(ctx context.Context) error {
 	var operatorCount *big.Int
 	var err error
 	for {
-		operatorCount, err = cli.operatorsContract.GetOperatorCount(nil)
+		err = cli.executeRPCCallWithRetry(ctx, func() error {
+			operatorCount, err = cli.operatorsContract.GetOperatorCount(nil)
+			return err
+		})
 		if err != nil {
 			return fmt.Errorf("couldn't get the operator count: %w", err)
 		}
@@ -300,12 +325,23 @@ func (cli *Client) waitForAllOperators(ctx context.Context) error {
 
 	var signers []handler.Signer
 	for i := 0; i < int(operatorCount.Int64()); i++ {
-		operator, err := cli.operatorsContract.Operators(nil, big.NewInt(int64(i)))
+		var operator struct {
+			Operator     common.Address
+			BlsPubKeyCID string
+		}
+		err = cli.executeRPCCallWithRetry(ctx, func() error {
+			operator, err = cli.operatorsContract.Operators(nil, big.NewInt(int64(i)))
+			return err
+		})
 		if err != nil {
 			return fmt.Errorf("couldn't get the operators: %w", err)
 		}
 
-		keyCID, err := cli.operatorsContract.GetBLSPubKeyCIDByIndex(nil, big.NewInt(int64(i)))
+		var keyCID string
+		err = cli.executeRPCCallWithRetry(ctx, func() error {
+			keyCID, err = cli.operatorsContract.GetBLSPubKeyCIDByIndex(nil, big.NewInt(int64(i)))
+			return err
+		})
 		if err != nil {
 			return fmt.Errorf("couldn't get the BLS Pub Key by Index: %w", err)
 		}
@@ -330,23 +366,24 @@ func (cli *Client) Start(ctx context.Context, topicName string) error {
 
 	errChan := make(chan error, 4)
 
-	// Start the discovery
 	go cli.startDiscovery(ctx, topicName, errChan)
 
-	// Start the pubsub
 	topicHandle, err := cli.startPubsub(ctx, topicName)
 	if err != nil {
 		return fmt.Errorf("failed to start pubsub: %w", err)
 	}
 
-	// Subscribe to the topic
 	sub, err := topicHandle.Subscribe()
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to topic: %w", err)
 	}
 
-	// Initialize the handler and start it
-	ourIndex, err := cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+	var ourIndex *big.Int
+	err = cli.executeRPCCallWithRetry(ctx, func() error {
+		var err error
+		ourIndex, err = cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("couldn't get our operator index: %w", err)
 	}
@@ -354,7 +391,6 @@ func (cli *Client) Start(ctx context.Context, topicName string) error {
 	cli.Handler = handler.NewHandler(sub, topicHandle, cli.signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, ourIndex.Uint64(), cli.committeeSize/2)
 	go cli.Handler.Start(ctx, errChan)
 
-	// Start the proxy server
 	cli.Proxy = proxy.NewProxy(cli.Handler, cli.rpcUrl, cli.proxyPort)
 	go cli.Proxy.Start()
 
@@ -388,7 +424,8 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
-	for {
+	anyConnected := false
+	for !anyConnected {
 		select {
 		case <-ctx.Done():
 			return
@@ -404,6 +441,8 @@ func (cli *Client) startDiscovery(ctx context.Context, topicName string, errChan
 				}
 				if err := cli.Host.Connect(ctx, peer); err != nil {
 					log.Printf("Failed connecting to %s: %v", peer.ID, err)
+				} else {
+					anyConnected = true
 				}
 			}
 		}
@@ -464,4 +503,49 @@ func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 
 func (cli *Client) GetHandler() *handler.Handler {
 	return cli.Handler
+}
+
+func (c *Client) executeRPCCallWithRetry(ctx context.Context, rpcCall func() error) error {
+	for {
+		err := rpcCall()
+		if err == nil {
+			return nil
+		}
+
+		if strings.Contains(err.Error(), "429 Too Many Requests") {
+			var errorResponse struct {
+				Error struct {
+					Data struct {
+						TryAgainIn string `json:"try_again_in"`
+					} `json:"data"`
+				} `json:"error"`
+			}
+
+			// Extract the JSON part from the error message
+			parts := strings.SplitN(err.Error(), "{", 2)
+			if len(parts) < 2 {
+				return fmt.Errorf("unexpected error format: %v", err)
+			}
+			jsonPart := "{" + parts[1]
+
+			if jsonErr := json.Unmarshal([]byte(jsonPart), &errorResponse); jsonErr == nil {
+				waitDuration, parseErr := time.ParseDuration(errorResponse.Error.Data.TryAgainIn)
+				if parseErr == nil {
+					fmt.Printf("Rate limit exceeded. Will sleep for %v before retrying.\n", waitDuration)
+					select {
+					case <-time.After(waitDuration):
+						continue
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				} else {
+					return fmt.Errorf("failed to parse duration: %v", parseErr)
+				}
+			} else {
+				return fmt.Errorf("failed to unmarshal JSON: %v", jsonErr)
+			}
+		}
+
+		return err
+	}
 }

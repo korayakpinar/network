@@ -105,8 +105,8 @@ func setupLibp2p(ctx context.Context, privKey string) (host.Host, *kaddht.IpfsDH
 	}
 
 	connmgr, err := connmgr.NewConnManager(
-		100, // Lowwater
-		400, // HighWater,
+		5,  // Lowwater
+		10, // HighWater,
 		connmgr.WithGracePeriod(time.Minute),
 	)
 	if err != nil {
@@ -126,6 +126,9 @@ func setupLibp2p(ctx context.Context, privKey string) (host.Host, *kaddht.IpfsDH
 		libp2p.ConnectionManager(connmgr),
 		libp2p.Routing(newDHT),
 		libp2p.Transport(tcp.NewTCPTransport),
+		libp2p.EnableNATService(),
+		libp2p.EnableHolePunching(),
+		libp2p.NATPortMap(),
 		libp2p.DisableMetrics(),
 	)
 	if err != nil {
