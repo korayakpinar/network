@@ -22,7 +22,6 @@ func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64
 
 	req := &EncryptRequest{
 		Msg: msg,
-		Pks: pks,
 		T:   t,
 		N:   n,
 	}
@@ -64,7 +63,6 @@ func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts map[uint64][
 
 	req := &DecryptRequest{
 		Enc:     []byte(enc),
-		Pks:     pks,
 		Parts:   parts,
 		GammaG2: gammaG2,
 		Sa1:     sa1,
