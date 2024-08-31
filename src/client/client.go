@@ -13,19 +13,16 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/korayakpinar/network/src/contracts"
-	"github.com/korayakpinar/network/src/utils"
-
-	api "github.com/korayakpinar/network/src/crypto"
 	"github.com/korayakpinar/network/src/handler"
+	"github.com/korayakpinar/network/src/types"
 
 	"github.com/korayakpinar/network/src/ipfs"
 	"github.com/korayakpinar/network/src/proxy"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	libp2pCrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -41,31 +38,41 @@ type Client struct {
 	Handler           *handler.Handler
 	Proxy             *proxy.Proxy
 	IPFSService       *ipfs.IPFSService
-	signers           *[]handler.Signer
+	signers           map[uint64]*types.Signer
 	proxyPort         string
 	rpcUrl            string
 	contractAddr      string
-	privKey           string
+	privKey           *libp2pCrypto.PrivKey
+	keystore          *types.Keystore
 	apiPort           string
 	committeeSize     uint64
+	networkSize       uint64
+	networkIndex      uint64
 	ethClient         *ethclient.Client
 	operatorsContract *contracts.Operators
-	auth              *bind.TransactOpts
+	adminKey          string
 }
 
-func NewClient(h host.Host, dht *kaddht.IpfsDHT, ipfsService *ipfs.IPFSService, apiPort, proxyPort, rpcUrl, contractAddr, privKey string, committeSize uint64) *Client {
-	signerArr := make([]handler.Signer, 0)
+const minDelay = time.Second * 5
+const maxDelay = time.Second * 10
+
+func NewClient(h host.Host, dht *kaddht.IpfsDHT, ipfsService *ipfs.IPFSService, apiPort, proxyPort, rpcUrl, contractAddr, adminKey string, privKey *libp2pCrypto.PrivKey, keystore *types.Keystore, committeSize, networkSize, networkIndex uint64) *Client {
+	signers := make(map[uint64]*types.Signer, 0)
 	return &Client{
 		Host:          h,
 		DHT:           dht,
 		IPFSService:   ipfsService,
-		signers:       &signerArr,
+		signers:       signers,
 		proxyPort:     proxyPort,
 		rpcUrl:        rpcUrl,
 		contractAddr:  contractAddr,
 		privKey:       privKey,
+		keystore:      keystore,
 		apiPort:       apiPort,
 		committeeSize: committeSize,
+		networkSize:   networkSize,
+		networkIndex:  networkIndex,
+		adminKey:      adminKey,
 	}
 }
 
@@ -89,32 +96,11 @@ func (cli *Client) Initialize(ctx context.Context) error {
 		return fmt.Errorf("couldn't create operators contract: %w", err)
 	}
 
-	ecdsaPrivKey, err := crypto.HexToECDSA(cli.privKey)
-	if err != nil {
-		return fmt.Errorf("couldn't get ECDSA private key from hex: %w", err)
-	}
-
-	var chainID *big.Int
-	err = cli.executeRPCCallWithRetry(ctx, func() error {
-		chainID, err = cli.ethClient.ChainID(ctx)
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("couldn't get chain id from the RPC: %w", err)
-	}
-
-	cli.auth, err = bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID)
-	if err != nil {
-		return fmt.Errorf("couldn't get the keyed transactor: %w", err)
-	}
-
 	return nil
 }
 
 func (cli *Client) Bootstrap(ctx context.Context) error {
 	attempt := 0
-	minDelay := time.Second * 5
-	maxDelay := time.Second * 10
 
 	for {
 		attempt++
@@ -132,156 +118,115 @@ func (cli *Client) Bootstrap(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-
 	}
 }
 
 func (cli *Client) bootstrapAttempt(ctx context.Context) error {
-	if err := cli.registerOperator(ctx); err != nil {
-		return fmt.Errorf("failed to register operator: %w", err)
+
+	contractSigners, err := cli.operatorsContract.GetAllOperators(&bind.CallOpts{})
+	if err != nil {
+		signerCount, err := cli.operatorsContract.GetOperatorCount(&bind.CallOpts{})
+		if err != nil {
+			return fmt.Errorf("couldn't get the operator count: %w", err)
+		}
+		if signerCount != big.NewInt(int64(cli.committeeSize-1)) {
+			log.Panicf("Signer count mismatch: expected %d, got %d", cli.committeeSize-1, signerCount)
+			return fmt.Errorf("failed to get all operators: %w", err)
+		}
+
+		// Take every operator that has been registered so far one by one
+		for i := 0; i < int(signerCount.Int64()); i++ {
+			operator, err := cli.operatorsContract.Operators(nil, big.NewInt(int64(i)))
+			if err != nil {
+				return fmt.Errorf("couldn't get operator: %w", err)
+			}
+			contractSigners = append(contractSigners, operator)
+		}
 	}
 
-	if err := cli.submitBLSKey(ctx); err != nil {
-		return fmt.Errorf("failed to submit BLS key: %w", err)
-	}
-
-	if err := cli.waitForAllOperators(ctx); err != nil {
-		return fmt.Errorf("failed to wait for all operators: %w", err)
+	if err := cli.InitializeSigners(contractSigners); err != nil {
+		return fmt.Errorf("failed to initialize signers: %w", err)
 	}
 
 	return nil
 }
 
-func (cli *Client) registerOperator(ctx context.Context) error {
-	var registered bool
-	var err error
+/*
+func (cli *Client) registerAllOperators(ctx context.Context) error {
+	api := api.NewCrypto(cli.apiPort)
 
-	err = cli.executeRPCCallWithRetry(ctx, func() error {
-		registered, err = cli.operatorsContract.IsRegistered(nil, cli.auth.From)
-		return err
-	})
+	ecdsaPrivKey, err := crypto.HexToECDSA(cli.adminKey)
 	if err != nil {
-		return fmt.Errorf("is registered call went wrong: %w", err)
+		return fmt.Errorf("couldn't get ECDSA private key from hex: %w, key: %v", err, cli.adminKey)
 	}
 
-	if !registered {
-		tx, err := utils.ExecuteTransactionWithRetry(cli.ethClient, cli.auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return cli.operatorsContract.RegisterOperator(auth)
-		})
-		if err != nil {
-			return fmt.Errorf("registration transaction couldn't be successful: %w", err)
-		}
-
-		if err := utils.WaitForTxConfirmationWithRetry(ctx, cli.ethClient, tx, 2); err != nil {
-			return fmt.Errorf("failed to wait for registration confirmation: %w", err)
-		}
-
-		log.Println("Operator registered successfully")
-	} else {
-		log.Println("Operator already registered")
-	}
-
-	return cli.waitForOperatorIndex(ctx)
-}
-
-func (cli *Client) waitForOperatorIndex(ctx context.Context) error {
-	minDelay := time.Second
-	maxDelay := time.Second * 5
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			var ourIndex *big.Int
-			err := cli.executeRPCCallWithRetry(ctx, func() error {
-				var err error
-				ourIndex, err = cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
-				return err
-			})
-			if err == nil {
-				log.Printf("Our operator index: %d\n", ourIndex)
-				return nil
-			}
-			log.Println("Waiting for operator index to be available...")
-			delay := time.Duration(rand.Int63n(int64(maxDelay-minDelay))) + minDelay
-			time.Sleep(delay)
-
-		}
-	}
-}
-
-func (cli *Client) submitBLSKey(ctx context.Context) error {
-	var submissions bool
-	err := cli.executeRPCCallWithRetry(ctx, func() error {
-		var err error
-		submissions, err = cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
-		return err
-	})
+	chainID, err := cli.ethClient.ChainID(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't get the BLS Key submission status: %w", err)
+		return fmt.Errorf("couldn't get chain ID: %w", err)
 	}
 
-	if !submissions {
-		var ourIndex *big.Int
-		err := cli.executeRPCCallWithRetry(ctx, func() error {
-			var err error
-			ourIndex, err = cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
-			return err
-		})
-		if err != nil {
-			return fmt.Errorf("get operator by index call went wrong: %w", err)
-		}
-
-		api := api.NewCrypto(cli.apiPort)
-		blsPubKey, err := api.GetPK(ourIndex.Uint64(), cli.committeeSize)
-		if err != nil {
-			return fmt.Errorf("API couldn't send the BLS Public Key: %w", err)
-		}
-
-		cid, err := cli.uploadAndVerifyBLSKey(ctx, blsPubKey)
-		if err != nil {
-			return fmt.Errorf("failed to upload and verify BLS key: %w", err)
-		}
-
-		tx, err := utils.ExecuteTransactionWithRetry(cli.ethClient, cli.auth, func(auth *bind.TransactOpts) (*types.Transaction, error) {
-			return cli.operatorsContract.SubmitBlsKeyCID(auth, cid)
-		})
-		if err != nil {
-			return fmt.Errorf("submit BLS Public Key transaction couldn't be successful: %w", err)
-		}
-
-		if err := utils.WaitForTxConfirmationWithRetry(ctx, cli.ethClient, tx, 2); err != nil {
-			return fmt.Errorf("failed to wait for BLS key submission confirmation: %w", err)
-		}
-
-		log.Println("BLS Public Key submitted successfully")
-	} else {
-		log.Println("BLS Public Key already submitted")
+	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivKey, chainID)
+	if err != nil {
+		return fmt.Errorf("couldn't create auth: %w", err)
 	}
 
-	return cli.waitForBLSKeySubmission(ctx)
+	operators := make([]contracts.OperatorsContractNode, 0, len(cli.keystore.Keys))
+	for i, key := range cli.keystore.Keys {
+		operatorPrivKey, err := crypto.HexToECDSA(key.ECDSAPrivateKey)
+		if err != nil {
+			return fmt.Errorf("couldn't get ECDSA private key from hex: %w", err)
+		}
+
+		index := (cli.committeeSize/cli.networkSize)*cli.networkIndex + uint64(i)
+		blsPubKey, err := api.GetPK([]byte(key.BLSPrivateKey), index, cli.committeeSize)
+		if err != nil {
+			return fmt.Errorf("couldn't get BLS public key: %w", err)
+		}
+
+		if string(blsPubKey) != key.BLSPublicKey {
+			return fmt.Errorf("BLS public key mismatch: expected %s, got %s", key.BLSPublicKey, blsPubKey)
+		}
+
+		operatorAddress := crypto.PubkeyToAddress(operatorPrivKey.PublicKey)
+		cid, err := cli.uploadAndVerifyBLSKey(ctx, []byte(key.BLSPublicKey))
+		if err != nil {
+			return fmt.Errorf("couldn't upload and verify BLS key: %w", err)
+		}
+
+		operators = append(operators, contracts.OperatorsContractNode{
+			Operator:     operatorAddress,
+			BlsPubKeyCID: cid,
+		})
+	}
+
+	tx, err := cli.operatorsContract.AppendMultipleOperators(auth, operators)
+	if err != nil {
+		return fmt.Errorf("failed to append multiple operators: %w", err)
+	}
+
+	if err := utils.WaitForTxConfirmationWithRetry(ctx, cli.ethClient, tx, 2); err != nil {
+		return fmt.Errorf("failed to wait for AppendMultipleOperators confirmation: %w", err)
+	}
+
+	log.Println("All operators registered successfully")
+	return nil
 }
 
-func (cli *Client) waitForBLSKeySubmission(ctx context.Context) error {
-
+func (cli *Client) waitForAllOperators(ctx context.Context) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			var submitted bool
-			err := cli.executeRPCCallWithRetry(ctx, func() error {
-				var err error
-				submitted, err = cli.operatorsContract.HasSubmittedBLSKey(nil, cli.auth.From)
-				return err
-			})
-			if err == nil && submitted {
-				return nil
-			}
-			log.Println("Waiting for BLS key submission to be recognized...")
-
+		operatorCount, err := cli.operatorsContract.GetOperatorCount(&bind.CallOpts{})
+		if err != nil {
+			return fmt.Errorf("couldn't get the operator count: %w", err)
 		}
+		if operatorCount.Cmp(big.NewInt(int64(cli.committeeSize-1))) >= 0 {
+			break
+		}
+		log.Printf("Waiting for all operators to be registered (%d/%d)...\n", operatorCount, cli.committeeSize-1)
+		time.Sleep(3 * time.Second)
 	}
+
+	log.Printf("All operators registered successfully: %d\n", cli.committeeSize-1)
+	return nil
 }
 
 func (cli *Client) uploadAndVerifyBLSKey(ctx context.Context, blsPubKey []byte) (string, error) {
@@ -303,62 +248,66 @@ func (cli *Client) uploadAndVerifyBLSKey(ctx context.Context, blsPubKey []byte) 
 	}
 
 	return "", fmt.Errorf("failed to verify uploaded BLS key after multiple attempts")
-}
+} */
 
-func (cli *Client) waitForAllOperators(ctx context.Context) error {
-	var operatorCount *big.Int
-	var err error
-	for {
-		err = cli.executeRPCCallWithRetry(ctx, func() error {
-			operatorCount, err = cli.operatorsContract.GetOperatorCount(nil)
-			return err
-		})
+func (c *Client) InitializeSigners(contractSigners []contracts.OperatorsContractNode) error {
+	c.signers = make(map[uint64]*types.Signer)
+
+	for index, contractSigner := range contractSigners {
+		key, err := c.IPFSService.GetKeyByCID(contractSigner.BlsPubKeyCID)
 		if err != nil {
-			return fmt.Errorf("couldn't get the operator count: %w", err)
+			return fmt.Errorf("couldn't get key by CID: %w", err)
 		}
-		if operatorCount.Int64() >= int64(cli.committeeSize-1) {
-			break
+
+		signer := &types.Signer{
+			Index:        uint64(index),
+			Address:      contractSigner.Operator,
+			BLSPublicKey: key,
+			IsLocal:      false,
 		}
-		log.Printf("Waiting for all operators to be registered (%d/%d)...\n", operatorCount.Int64(), cli.committeeSize)
-		time.Sleep(3 * time.Second)
+
+		if keyPair, exists := c.keystore.Keys[uint64(index)]; exists {
+			signer.IsLocal = true
+			signer.KeyPair = &keyPair
+		}
+
+		c.signers[uint64(index)] = signer
 	}
-
-	var signers []handler.Signer
-	for i := 0; i < int(operatorCount.Int64()); i++ {
-		var operator struct {
-			Operator     common.Address
-			BlsPubKeyCID string
-		}
-		err = cli.executeRPCCallWithRetry(ctx, func() error {
-			operator, err = cli.operatorsContract.Operators(nil, big.NewInt(int64(i)))
-			return err
-		})
-		if err != nil {
-			return fmt.Errorf("couldn't get the operators: %w", err)
-		}
-
-		var keyCID string
-		err = cli.executeRPCCallWithRetry(ctx, func() error {
-			keyCID, err = cli.operatorsContract.GetBLSPubKeyCIDByIndex(nil, big.NewInt(int64(i)))
-			return err
-		})
-		if err != nil {
-			return fmt.Errorf("couldn't get the BLS Pub Key by Index: %w", err)
-		}
-
-		key, err := cli.IPFSService.GetKeyByCID(keyCID)
-		if err != nil {
-			return fmt.Errorf("couldn't get the BLS Pub Key from IPFS: %w", err)
-		}
-
-		newSigner := handler.NewSigner(operator.Operator, key)
-		signers = append(signers, newSigner)
-	}
-
-	cli.signers = &signers
-	log.Printf("All operators registered successfully: %d\n", len(signers))
 
 	return nil
+}
+
+func (c *Client) GetSignerInfo(index uint64) (*types.Signer, bool) {
+	signer, exists := c.signers[index]
+	return signer, exists
+}
+
+func (c *Client) GetLocalSigners() []*types.Signer {
+	var localSigners []*types.Signer
+	for _, signer := range c.signers {
+		if signer.IsLocal {
+			localSigners = append(localSigners, signer)
+		}
+	}
+	return localSigners
+}
+
+func (c *Client) GetAllSigners() []*types.Signer {
+	var allSigners []*types.Signer
+	for _, signer := range c.signers {
+		allSigners = append(allSigners, signer)
+	}
+	return allSigners
+}
+
+func (c *Client) UpdateSignerIndex(oldIndex, newIndex uint64) error {
+	if signer, exists := c.signers[oldIndex]; exists {
+		signer.Index = newIndex
+		c.signers[newIndex] = signer
+		delete(c.signers, oldIndex)
+		return nil
+	}
+	return fmt.Errorf("signer with index %d not found", oldIndex)
 }
 
 func (cli *Client) Start(ctx context.Context, topicName string) error {
@@ -378,17 +327,8 @@ func (cli *Client) Start(ctx context.Context, topicName string) error {
 		return fmt.Errorf("failed to subscribe to topic: %w", err)
 	}
 
-	var ourIndex *big.Int
-	err = cli.executeRPCCallWithRetry(ctx, func() error {
-		var err error
-		ourIndex, err = cli.operatorsContract.GetOperatorIndex(nil, cli.auth.From)
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("couldn't get our operator index: %w", err)
-	}
-
-	cli.Handler = handler.NewHandler(sub, topicHandle, cli.signers, cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, ourIndex.Uint64(), cli.committeeSize/2)
+	cli.Handler = handler.NewHandler(sub, topicHandle, cli.signers, *cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, cli.committeeSize/2, cli.networkIndex, cli.networkSize)
+	log.Println("Index:", cli.networkIndex)
 	go cli.Handler.Start(ctx, errChan)
 
 	cli.Proxy = proxy.NewProxy(cli.Handler, cli.rpcUrl, cli.proxyPort)

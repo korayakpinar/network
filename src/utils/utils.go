@@ -178,21 +178,6 @@ func EthToLibp2pPrivKey(key string) (crypto.PrivKey, error) {
 	return priv, nil
 }
 
-func SignTheHash(privKey string, hash []byte) ([]byte, error) {
-	privKeyECDSA, err := ethCrypto.HexToECDSA(privKey)
-	if err != nil {
-		return nil, err
-	}
-
-	signature, err := ethCrypto.Sign(hash, privKeyECDSA)
-	if err != nil {
-		return nil, err
-	}
-
-	return signature, nil
-
-}
-
 func IdToEthAddress(id peer.ID) common.Address {
 	pubKey, err := id.ExtractPublicKey()
 	if err != nil {

@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -21,51 +20,58 @@ import (
 	"github.com/korayakpinar/network/src/mempool"
 	"github.com/korayakpinar/network/src/message"
 	"github.com/korayakpinar/network/src/types"
-	"github.com/korayakpinar/network/src/utils"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	libp2pCrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"google.golang.org/protobuf/proto"
 )
-
-type Signer struct {
-	address common.Address
-	blsKey  []byte
-}
 
 type Handler struct {
 	sub     *pubsub.Subscription
 	topic   *pubsub.Topic
 	mempool *mempool.Mempool
-	signers *[]Signer
+	signers map[uint64]*types.Signer
 	crypto  *crypto.Crypto
+	privKey libp2pCrypto.PrivKey
 
-	privKey       string
+	networkIndex  uint64
+	networkSize   uint64
 	rpcUrl        string
 	committeeSize uint64
-	ourIndex      uint64
 	threshold     uint64
 }
 
-func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, signers *[]Signer, privKey, rpcUrl, apiPort string, commmitteeSize, ourIndex, threshold uint64) *Handler {
+func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, signers map[uint64]*types.Signer, privKey libp2pCrypto.PrivKey, rpcUrl, apiPort string, commmitteeSize, threshold, networkIndex, networkSize uint64) *Handler {
 	mempool := mempool.NewMempool()
 	crypto := crypto.NewCrypto(apiPort)
-	return &Handler{sub: sub, topic: topic, mempool: mempool, signers: signers, crypto: crypto, privKey: privKey, rpcUrl: rpcUrl, committeeSize: commmitteeSize, ourIndex: ourIndex, threshold: threshold}
+	return &Handler{
+		sub:           sub,
+		topic:         topic,
+		mempool:       mempool,
+		signers:       signers,
+		crypto:        crypto,
+		privKey:       privKey,
+		rpcUrl:        rpcUrl,
+		committeeSize: commmitteeSize,
+		threshold:     threshold,
+		networkIndex:  networkIndex,
+		networkSize:   networkSize,
+	}
+
 }
 
 func (h *Handler) Start(ctx context.Context, errChan chan error) {
 	log.Println("Starting the handler")
 	var leaderIndex uint64 = 0
-	var ourIndex uint64 = h.ourIndex
-	var CommitteSize uint64 = h.committeeSize
 
-	log.Printf("Initial state: ourIndex=%d, leaderIndex=%d, CommitteSize=%d", ourIndex, leaderIndex, CommitteSize)
+	log.Printf("Initial state: ourIndex=%d, leaderIndex=%d, CommitteeSize=%d", h.networkIndex, leaderIndex, h.committeeSize)
 
-	go h.leaderRoutine(ctx, errChan, &leaderIndex, ourIndex)
-	go h.messageHandlingRoutine(ctx, errChan, &leaderIndex, ourIndex, CommitteSize)
+	go h.leaderRoutine(ctx, errChan, &leaderIndex)
+	go h.messageHandlingRoutine(ctx, errChan, &leaderIndex, h.committeeSize)
 
 	log.Println("Handler started successfully")
 }
 
-func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64, ourIndex uint64) {
+func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64) {
 	log.Println("Starting leader routine")
 	for {
 		select {
@@ -74,7 +80,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 			return
 		default:
 
-			if ourIndex == *leaderIndex {
+			if h.networkIndex == *leaderIndex {
 				if err := h.performLeaderDuties(ctx, leaderIndex); err != nil {
 					log.Printf("Error performing leader duties: %v", err)
 					errChan <- err
@@ -108,7 +114,7 @@ func (h *Handler) performLeaderDuties(ctx context.Context, leaderIndex *uint64) 
 	log.Println("Leader duties completed successfully")
 
 	*leaderIndex++
-	*leaderIndex %= h.committeeSize
+	*leaderIndex %= h.networkSize
 
 	return nil
 }
@@ -127,13 +133,13 @@ func (h *Handler) prepareEncryptedBatch(encTxs []*types.EncryptedTransaction) (*
 	hashBytes := sha256.Sum256(encBatchBody.Bytes())
 	hashDigest := hashBytes[:] // Bu, 32 byte uzunluğunda bir []byte olacak
 
-	sig, err := utils.SignTheHash(h.privKey, hashDigest)
+	sig, err := h.privKey.Sign(hashDigest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign batch: %w", err)
 	}
 
 	encBatchHeader := &types.BatchHeader{
-		LeaderID:  h.ourIndex,
+		LeaderID:  h.networkIndex,
 		BlockNum:  0,
 		Hash:      hex.EncodeToString(hashDigest),
 		Signature: hex.EncodeToString(sig),
@@ -190,14 +196,17 @@ func (h *Handler) publishEncryptedBatch(ctx context.Context, encBatch *types.Enc
 		incTx := h.mempool.GetIncludedTransaction(txHash)
 		if incTx != nil {
 			log.Printf("Transaction included: %s", txHash)
-			if slices.Contains(incTx.Header.PkIDs, h.ourIndex) {
-				partDec, err := h.crypto.PartialDecrypt(incTx.Header.GammaG2)
-				if err != nil {
-					return fmt.Errorf("failed to partially decrypt transaction: %w", err)
+			for _, id := range incTx.Header.PkIDs {
+				if h.signers[id].IsLocal {
+					signer := h.signers[id]
+					partDec, err := h.crypto.PartialDecrypt([]byte(signer.KeyPair.BLSPrivateKey), incTx.Header.GammaG2)
+					if err != nil {
+						return fmt.Errorf("failed to partially decrypt transaction: %w", err)
+					}
+					h.mempool.AddPartialDecryption(txHash, id, partDec)
 				}
-				h.mempool.AddPartialDecryption(txHash, h.ourIndex, partDec)
-
 			}
+
 		}
 	}
 
@@ -210,7 +219,7 @@ func (h *Handler) publishEncryptedBatch(ctx context.Context, encBatch *types.Enc
 	return nil
 }
 
-func (h *Handler) messageHandlingRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64, ourIndex, CommitteSize uint64) {
+func (h *Handler) messageHandlingRoutine(ctx context.Context, errChan chan error, leaderIndex *uint64, CommitteeSize uint64) {
 	log.Println("Starting message handling routine")
 	for {
 		select {
@@ -219,7 +228,7 @@ func (h *Handler) messageHandlingRoutine(ctx context.Context, errChan chan error
 			return
 		default:
 			time.Sleep(time.Second / 4) // Prevent tight loop
-			if err := h.handleNextMessage(ctx, leaderIndex, ourIndex, CommitteSize); err != nil {
+			if err := h.handleNextMessage(ctx, leaderIndex, CommitteeSize); err != nil {
 				log.Printf("Error handling message: %v", err)
 				errChan <- err
 				return
@@ -228,7 +237,7 @@ func (h *Handler) messageHandlingRoutine(ctx context.Context, errChan chan error
 	}
 }
 
-func (h *Handler) handleNextMessage(ctx context.Context, leaderIndex *uint64, ourIndex, CommitteSize uint64) error {
+func (h *Handler) handleNextMessage(ctx context.Context, leaderIndex *uint64, CommitteeSize uint64) error {
 	log.Println("Waiting for next message")
 	msg, err := h.sub.Next(ctx)
 	if err != nil {
@@ -244,10 +253,10 @@ func (h *Handler) handleNextMessage(ctx context.Context, leaderIndex *uint64, ou
 	switch newMsg.MessageType {
 	case message.MessageType_ENCRYPTED_TRANSACTION:
 		return h.handleEncryptedTransaction(newMsg)
-	case message.MessageType_PARTIAL_DECRYPTION:
-		return h.handlePartialDecryption(newMsg, *leaderIndex, CommitteSize)
+	case message.MessageType_PARTIAL_DECRYPTION_BATCH:
+		return h.handlePartialDecryptionBatch(newMsg, *leaderIndex, CommitteeSize)
 	case message.MessageType_ENCRYPTED_BATCH:
-		return h.handleEncryptedBatch(ctx, newMsg, leaderIndex, ourIndex, CommitteSize)
+		return h.handleEncryptedBatch(ctx, newMsg, leaderIndex)
 	case message.MessageType_ORDER_SIGNATURE:
 		return h.handleOrderSignature(newMsg)
 	default:
@@ -278,35 +287,38 @@ func (h *Handler) handleEncryptedTransaction(msg *message.Message) error {
 	return nil
 }
 
-func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint64, CommitteSize uint64) error {
-	log.Println("Handling partial decryption")
-	partDecMsg := msg.Message.(*message.Message_PartialDecryption).PartialDecryption
-	partDec := partDecMsg.PartDec
+func (h *Handler) handlePartialDecryptionBatch(msg *message.Message, leaderIndex uint64, CommitteeSize uint64) error {
+
+	partDecMsg := msg.Message.(*message.Message_PartialDecryptionBatch).PartialDecryptionBatch
+	decryptions := partDecMsg.Decryptions
 	sender := partDecMsg.Sender
 	txHash := partDecMsg.TxHash
+	log.Println("Handling partial decryption from: ", sender)
 
 	// Skip if we are not the first node in the committee or partial decryptions from us
-	if sender == h.ourIndex || h.ourIndex != 0 {
-		log.Printf("Ignoring partial decryption from us or non-leader: %d", sender)
+	if sender == h.networkIndex || h.networkIndex != 0 {
+		log.Printf("Ignoring partial decryption from us or we are not a leader: %d", sender)
 		return nil
 	}
 
-	h.mempool.AddPartialDecryption(txHash, sender, partDec)
+	for _, dec := range decryptions {
+		h.mempool.AddPartialDecryption(txHash, dec.Signer, dec.PartDec)
+	}
 
 	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) && !h.CheckTransactionDecrypted(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
 		encTx := h.mempool.GetIncludedTransaction(txHash)
 		encryptedContent := encTx.Body.EncText
 
-		pks := make([][]byte, CommitteSize)
-		for i := 0; i < int(CommitteSize); i++ {
-			pks[i] = h.GetSignerByIndex(uint64(i)).blsKey
+		pks := make([][]byte, CommitteeSize)
+		for i := 0; i < int(CommitteeSize); i++ {
+			pks[i] = h.GetSignerByIndex(uint64(i)).BLSPublicKey
 		}
 
 		partDecs := h.mempool.GetPartialDecryptions(txHash)
 
 		// TODO: Seperate the committee size and the nodes count, for now we are using the same number
-		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteSize+1)
+		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteeSize+1)
 
 		if err != nil {
 			return fmt.Errorf("failed to decrypt transaction: %w", err)
@@ -321,7 +333,7 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 			},
 		})
 		log.Printf("Transaction decrypted: %s", txHash)
-		if h.ourIndex == 0 {
+		if h.networkIndex == 0 {
 			tx, err := sendRawTransaction(h.rpcUrl, string(content))
 			if err != nil {
 				return fmt.Errorf("failed to send transaction to blockchain: %w", err)
@@ -332,7 +344,7 @@ func (h *Handler) handlePartialDecryption(msg *message.Message, leaderIndex uint
 	return nil
 }
 
-func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message, leaderIndex *uint64, ourIndex, CommitteSize uint64) error {
+func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message, leaderIndex *uint64) error {
 
 	log.Println("Handling encrypted batch")
 	encBatchMsg := msg.Message.(*message.Message_EncryptedBatch).EncryptedBatch
@@ -340,28 +352,41 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 	var txHashes []string
 	for _, encTx := range encBatchMsg.Body.Transactions {
 		txHashes = append(txHashes, string(encTx.Hash))
-		if slices.Contains(encTx.PkIDs, ourIndex) {
-			partDec, err := h.crypto.PartialDecrypt(encTx.GammaG2)
-			if err != nil {
-				return fmt.Errorf("failed to partially decrypt transaction: %w", err)
+		partDecs := make([]*message.PartialDecryption, 0)
+
+		for _, id := range encTx.PkIDs {
+			if h.signers[id].IsLocal {
+				signer := h.signers[id]
+				partDec, err := h.crypto.PartialDecrypt([]byte(signer.KeyPair.BLSPrivateKey), encTx.GammaG2)
+				if err != nil {
+					return fmt.Errorf("failed to partially decrypt transaction: %w", err)
+				}
+				h.mempool.AddPartialDecryption(string(encTx.Hash), id, partDec)
+
+				fmt.Printf("Partial decryption added for transaction: %s\n", encTx.Hash)
+
+				partDecMsg := &message.PartialDecryption{
+					Signer:  id,
+					PartDec: partDec,
+				}
+
+				partDecs = append(partDecs, partDecMsg)
+
 			}
+		}
 
-			h.mempool.AddPartialDecryption(encTx.Hash, h.ourIndex, partDec)
-
-			fmt.Printf("Partial decryption added for transaction: %s\n", encTx.Hash)
-
-			newMessage := &message.Message{
-				Message: &message.Message_PartialDecryption{
-					PartialDecryption: &message.PartialDecryption{
-						TxHash:  encTx.Hash,
-						Sender:  ourIndex,
-						PartDec: partDec,
+		if len(partDecs) > 0 {
+			batchMessage := &message.Message{
+				MessageType: message.MessageType_PARTIAL_DECRYPTION_BATCH,
+				Message: &message.Message_PartialDecryptionBatch{
+					PartialDecryptionBatch: &message.PartialDecryptionBatch{
+						Decryptions: partDecs,
+						Sender:      h.networkIndex,
+						TxHash:      string(encTx.Hash),
 					},
 				},
-				MessageType: message.MessageType_PARTIAL_DECRYPTION,
 			}
-
-			msgBytes, err := proto.Marshal(newMessage)
+			msgBytes, err := proto.Marshal(batchMessage)
 			if err != nil {
 				return fmt.Errorf("failed to marshal partial decryption message: %w", err)
 			}
@@ -370,9 +395,10 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 				return fmt.Errorf("failed to publish partial decryption message: %w", err)
 			}
 		}
+
 	}
 
-	if encBatchMsg.Header.LeaderID == ourIndex {
+	if encBatchMsg.Header.LeaderID == h.networkIndex {
 		log.Println("Ignoring own batch")
 		return nil
 	}
@@ -385,7 +411,7 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 	h.mempool.IncludeEncryptedTxs(txHashes)
 
 	*leaderIndex++
-	*leaderIndex %= CommitteSize
+	*leaderIndex %= h.networkSize
 	log.Printf("New leader index: %d", *leaderIndex)
 	return nil
 }
@@ -425,9 +451,9 @@ func (h *Handler) HandleTransaction(tx string) error {
 	log.Println("Random indexes: ", randomIndexes)
 
 	pks := make([][]byte, h.committeeSize)
-	ourSigners := *h.GetSigners()
-	for i := 0; i < int(h.committeeSize); i++ {
-		pks[i] = ourSigners[i].blsKey
+
+	for index, signer := range h.GetSigners() {
+		pks[index] = signer.BLSPublicKey
 	}
 
 	encResponse, err := h.crypto.EncryptTransaction([]byte(tx), pks, h.threshold, h.committeeSize)
@@ -569,24 +595,20 @@ func (h *Handler) CalculateTxHash(rawTx string) (string, error) {
 	return hash.Hex(), nil
 }
 
-func NewSigner(address common.Address, blsKey []byte) Signer {
-	return Signer{address: address, blsKey: blsKey}
+func NewLocalSigner(index uint64, address common.Address, blsKey []byte) types.Signer {
+	return types.Signer{Index: index, Address: address, BLSPublicKey: blsKey, IsLocal: false, KeyPair: nil}
 }
 
-func (s *Signer) GetAddress() common.Address {
-	return s.address
+func (h *Handler) AddSigner(p types.Signer, index uint64) {
+	h.signers[index] = &p
 }
 
-func (h *Handler) AddSigner(p Signer) {
-	*h.signers = append(*h.signers, p)
-}
-
-func (h *Handler) GetSigners() *[]Signer {
+func (h *Handler) GetSigners() map[uint64]*types.Signer {
 	return h.signers
 }
 
-func (h *Handler) GetSignerByIndex(index uint64) *Signer {
-	return &(*h.signers)[index]
+func (h *Handler) GetSignerByIndex(index uint64) *types.Signer {
+	return h.signers[index]
 }
 
 func (h *Handler) Stop() {

@@ -29,9 +29,15 @@ var (
 	_ = abi.ConvertType
 )
 
+// OperatorsContractNode is an auto generated low-level Go binding around an user-defined struct.
+type OperatorsContractNode struct {
+	Operator     common.Address
+	BlsPubKeyCID string
+}
+
 // OperatorsMetaData contains all meta data concerning the Operators contract.
 var OperatorsMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"GetOperatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"GetOperatorIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"IsRegistered\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"Operators\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"string\",\"name\":\"blsPubKeyCID\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"getBLSPubKeyCID\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"getBLSPubKeyCIDByIndex\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"hasSubmittedBLSKey\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"hasSubmittedKey\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"registerOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"blsPubKeyCID\",\"type\":\"string\"}],\"name\":\"submitBlsKeyCID\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"string\",\"name\":\"blsPubKeyCID\",\"type\":\"string\"}],\"internalType\":\"structOperatorsContract.Node[]\",\"name\":\"newOperators\",\"type\":\"tuple[]\"}],\"name\":\"AppendMultipleOperators\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"GetAllOperators\",\"outputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"string\",\"name\":\"blsPubKeyCID\",\"type\":\"string\"}],\"internalType\":\"structOperatorsContract.Node[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"GetOperatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"GetOperatorIndex\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"IsRegistered\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"Operators\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"internalType\":\"string\",\"name\":\"blsPubKeyCID\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"getBLSPubKeyCID\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"getBLSPubKeyCIDByIndex\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"operatorAddress\",\"type\":\"address\"}],\"name\":\"hasSubmittedBLSKey\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"hasSubmittedKey\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"registerOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"blsPubKeyCID\",\"type\":\"string\"}],\"name\":\"submitBlsKeyCID\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // OperatorsABI is the input ABI used to generate the binding from.
@@ -178,6 +184,37 @@ func (_Operators *OperatorsTransactorRaw) Transfer(opts *bind.TransactOpts) (*ty
 // Transact invokes the (paid) contract method with params as input values.
 func (_Operators *OperatorsTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
 	return _Operators.Contract.contract.Transact(opts, method, params...)
+}
+
+// GetAllOperators is a free data retrieval call binding the contract method 0x5d600f7b.
+//
+// Solidity: function GetAllOperators() view returns((address,string)[])
+func (_Operators *OperatorsCaller) GetAllOperators(opts *bind.CallOpts) ([]OperatorsContractNode, error) {
+	var out []interface{}
+	err := _Operators.contract.Call(opts, &out, "GetAllOperators")
+
+	if err != nil {
+		return *new([]OperatorsContractNode), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]OperatorsContractNode)).(*[]OperatorsContractNode)
+
+	return out0, err
+
+}
+
+// GetAllOperators is a free data retrieval call binding the contract method 0x5d600f7b.
+//
+// Solidity: function GetAllOperators() view returns((address,string)[])
+func (_Operators *OperatorsSession) GetAllOperators() ([]OperatorsContractNode, error) {
+	return _Operators.Contract.GetAllOperators(&_Operators.CallOpts)
+}
+
+// GetAllOperators is a free data retrieval call binding the contract method 0x5d600f7b.
+//
+// Solidity: function GetAllOperators() view returns((address,string)[])
+func (_Operators *OperatorsCallerSession) GetAllOperators() ([]OperatorsContractNode, error) {
+	return _Operators.Contract.GetAllOperators(&_Operators.CallOpts)
 }
 
 // GetOperatorCount is a free data retrieval call binding the contract method 0x9a5c350d.
@@ -440,6 +477,27 @@ func (_Operators *OperatorsSession) HasSubmittedKey(arg0 common.Address) (bool, 
 // Solidity: function hasSubmittedKey(address ) view returns(bool)
 func (_Operators *OperatorsCallerSession) HasSubmittedKey(arg0 common.Address) (bool, error) {
 	return _Operators.Contract.HasSubmittedKey(&_Operators.CallOpts, arg0)
+}
+
+// AppendMultipleOperators is a paid mutator transaction binding the contract method 0x55bc8c14.
+//
+// Solidity: function AppendMultipleOperators((address,string)[] newOperators) returns()
+func (_Operators *OperatorsTransactor) AppendMultipleOperators(opts *bind.TransactOpts, newOperators []OperatorsContractNode) (*types.Transaction, error) {
+	return _Operators.contract.Transact(opts, "AppendMultipleOperators", newOperators)
+}
+
+// AppendMultipleOperators is a paid mutator transaction binding the contract method 0x55bc8c14.
+//
+// Solidity: function AppendMultipleOperators((address,string)[] newOperators) returns()
+func (_Operators *OperatorsSession) AppendMultipleOperators(newOperators []OperatorsContractNode) (*types.Transaction, error) {
+	return _Operators.Contract.AppendMultipleOperators(&_Operators.TransactOpts, newOperators)
+}
+
+// AppendMultipleOperators is a paid mutator transaction binding the contract method 0x55bc8c14.
+//
+// Solidity: function AppendMultipleOperators((address,string)[] newOperators) returns()
+func (_Operators *OperatorsTransactorSession) AppendMultipleOperators(newOperators []OperatorsContractNode) (*types.Transaction, error) {
+	return _Operators.Contract.AppendMultipleOperators(&_Operators.TransactOpts, newOperators)
 }
 
 // RegisterOperator is a paid mutator transaction binding the contract method 0x2acde098.

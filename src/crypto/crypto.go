@@ -105,11 +105,12 @@ func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts map[uint64][
 	return decryptDataResp.Result, nil
 }
 
-func (c *Crypto) PartialDecrypt(gammaG2 []byte) ([]byte, error) {
+func (c *Crypto) PartialDecrypt(sk []byte, gammaG2 []byte) ([]byte, error) {
 	client := http.Client{}
 
-	req := &GammaG2Request{
-		GammaG2: []byte(gammaG2),
+	req := &PartDecRequest{
+		GammaG2: gammaG2,
+		Sk:      sk,
 	}
 	data, err := proto.Marshal(req)
 	if err != nil {
@@ -147,10 +148,11 @@ func (c *Crypto) PartialDecrypt(gammaG2 []byte) ([]byte, error) {
 	return partDecResp.Result, nil
 }
 
-func (c *Crypto) GetPK(id uint64, n uint64) ([]byte, error) {
+func (c *Crypto) GetPK(sk []byte, id uint64, n uint64) ([]byte, error) {
 	client := http.Client{}
 
 	req := &PKRequest{
+		Sk: sk,
 		Id: id,
 		N:  n,
 	}

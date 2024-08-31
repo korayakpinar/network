@@ -3,6 +3,8 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // EncryptedTransaction represents the encrypted transaction
@@ -88,4 +90,26 @@ func (b *BatchBody) Bytes() []byte {
 type OrderSig struct {
 	TxHeaders []*EncryptedTxHeader
 	Signature string
+}
+
+type Signer struct {
+	Index        uint64
+	Address      common.Address
+	BLSPublicKey []byte
+	IsLocal      bool
+	KeyPair      *KeyPair // Sadece local signer'lar için dolu olacak
+}
+
+func (s *Signer) GetAddress() common.Address {
+	return s.Address
+}
+
+type Keystore struct {
+	Keys map[uint64]KeyPair
+}
+
+type KeyPair struct {
+	ECDSAPrivateKey string
+	BLSPrivateKey   string
+	BLSPublicKey    string
 }

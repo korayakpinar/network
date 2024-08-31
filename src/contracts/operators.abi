@@ -1,5 +1,55 @@
 [
 	{
+		"inputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "operator",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "blsPubKeyCID",
+						"type": "string"
+					}
+				],
+				"internalType": "struct OperatorsContract.Node[]",
+				"name": "newOperators",
+				"type": "tuple[]"
+			}
+		],
+		"name": "AppendMultipleOperators",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "GetAllOperators",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "operator",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "blsPubKeyCID",
+						"type": "string"
+					}
+				],
+				"internalType": "struct OperatorsContract.Node[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "GetOperatorCount",
 		"outputs": [

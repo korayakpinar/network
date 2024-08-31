@@ -10,7 +10,7 @@ message Message {
     oneof message {
         EncryptedTransaction encrypted_transaction = 1;
         EncryptedBatch encrypted_batch = 2;
-        PartialDecryption partial_decryption = 3;
+        PartialDecryptionBatch partial_decryption_batch = 3;
         OrderSignature order_signature = 4;
     }
 
@@ -21,6 +21,6 @@ enum MessageType {
     UNKNOWN = 0;
     ENCRYPTED_TRANSACTION = 1;
     ENCRYPTED_BATCH = 2;
-    PARTIAL_DECRYPTION = 3;
+    PARTIAL_DECRYPTION_BATCH = 3;
     ORDER_SIGNATURE = 4;
 }
