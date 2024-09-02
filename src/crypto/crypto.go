@@ -17,7 +17,7 @@ func NewCrypto(port string) *Crypto {
 	return &Crypto{port: port}
 }
 
-func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64) (*EncryptResponse, error) {
+func (c *Crypto) EncryptTransaction(msg []byte, t uint64, n uint64) (*EncryptResponse, error) {
 	client := http.Client{}
 
 	req := &EncryptRequest{
@@ -58,7 +58,7 @@ func (c *Crypto) EncryptTransaction(msg []byte, pks [][]byte, t uint64, n uint64
 	return &encryptDataResp, nil
 }
 
-func (c *Crypto) DecryptTransaction(enc []byte, pks [][]byte, parts map[uint64][]byte, gammaG2 []byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
+func (c *Crypto) DecryptTransaction(enc []byte, parts map[uint64][]byte, gammaG2 []byte, sa1 []byte, sa2 []byte, iv []byte, t uint64, n uint64) ([]byte, error) {
 	client := http.Client{}
 
 	req := &DecryptRequest{

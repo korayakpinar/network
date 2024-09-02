@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -61,20 +62,24 @@ func main() {
 		return
 	}
 
-	fmt.Println("Host created, ID:", h.ID(), h.Addrs())
+	log.Println("Host created, ID:", h.ID(), h.Addrs())
 
+	log.Println("Initializing IPFS Service...")
 	// Initialize the IPFS service
 	ipfsService := ipfs.NewIPFSService(*ipfsGatewayURL)
 
+	log.Println("Initializing client...")
 	// Initialize the client
 	client := client.NewClient(h, dht, ipfsService, *apiPort, *proxyPort, *rpcURL, *contractAddr, *adminKey, &priv, keystore, *committeeSize, *networkSize, *networkIndex)
 
+	log.Println("Initializing client...")
 	// Initialize the client
 	if err := client.Initialize(ctx); err != nil {
 		fmt.Printf("Failed to initialize client: %v\n", err)
 		return
 	}
 
+	log.Println("Bootstrapping client...")
 	// Perform bootstrapping
 	if err := client.Bootstrap(ctx); err != nil {
 		fmt.Printf("Failed to bootstrap: %v\n", err)

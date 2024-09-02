@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/korayakpinar/network/src/contracts"
 	"github.com/korayakpinar/network/src/handler"
+	"github.com/korayakpinar/network/src/mempool"
 	"github.com/korayakpinar/network/src/types"
 
 	"github.com/korayakpinar/network/src/ipfs"
@@ -122,9 +123,12 @@ func (cli *Client) Bootstrap(ctx context.Context) error {
 }
 
 func (cli *Client) bootstrapAttempt(ctx context.Context) error {
+	log.Println("Taking all operators from the contract...")
 
-	contractSigners, err := cli.operatorsContract.GetAllOperators(&bind.CallOpts{})
+	callCtx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	contractSigners, err := cli.operatorsContract.GetAllOperators(&bind.CallOpts{Context: callCtx})
 	if err != nil {
+		log.Println("Failed to get all operators from the contract. Registering all operators...")
 		signerCount, err := cli.operatorsContract.GetOperatorCount(&bind.CallOpts{})
 		if err != nil {
 			return fmt.Errorf("couldn't get the operator count: %w", err)
@@ -327,12 +331,13 @@ func (cli *Client) Start(ctx context.Context, topicName string) error {
 		return fmt.Errorf("failed to subscribe to topic: %w", err)
 	}
 
-	cli.Handler = handler.NewHandler(sub, topicHandle, cli.signers, *cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, cli.committeeSize/2, cli.networkIndex, cli.networkSize)
-	log.Println("Index:", cli.networkIndex)
-	go cli.Handler.Start(ctx, errChan)
+	mempool := mempool.NewMempool()
+	cli.Handler = handler.NewHandler(sub, topicHandle, cli.Proxy, mempool, cli.signers, *cli.privKey, cli.rpcUrl, cli.apiPort, cli.committeeSize-1, cli.committeeSize/2, cli.networkIndex, cli.networkSize)
+	cli.Proxy = proxy.NewProxy(cli.Handler, mempool, cli.rpcUrl, cli.proxyPort)
 
-	cli.Proxy = proxy.NewProxy(cli.Handler, cli.rpcUrl, cli.proxyPort)
+	log.Println("Index:", cli.networkIndex)
 	go cli.Proxy.Start()
+	go cli.Handler.Start(ctx, errChan)
 
 	select {
 	case err := <-errChan:

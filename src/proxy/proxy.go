@@ -11,17 +11,20 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/korayakpinar/network/src/handler"
+	"github.com/korayakpinar/network/src/mempool"
 	"github.com/korayakpinar/network/src/types"
+	"github.com/korayakpinar/network/src/utils"
 	"github.com/rs/cors"
 )
 
 type Proxy struct {
-	Handler *handler.Handler
-	RpcURL  string
-	Port    string
-	clients map[*websocket.Conn]bool
-	mutex   sync.Mutex
+	Mempool       *mempool.Mempool
+	Handler       types.Handler
+	RpcURL        string
+	Port          string
+	clients       map[*websocket.Conn]bool
+	subscriptions map[*websocket.Conn]map[string]bool
+	mutex         sync.Mutex
 }
 
 var upgrader = websocket.Upgrader{
@@ -51,12 +54,14 @@ type TransactionResponse struct {
 	PartialDecryptions     map[uint64][]byte    `json:"partialDecryptions,omitempty"`
 }
 
-func NewProxy(handler *handler.Handler, rpcURL, port string) *Proxy {
+func NewProxy(handler types.Handler, mempool *mempool.Mempool, rpcURL, port string) *Proxy {
 	return &Proxy{
-		Handler: handler,
-		RpcURL:  rpcURL,
-		Port:    port,
-		clients: make(map[*websocket.Conn]bool),
+		Handler:       handler,
+		Mempool:       mempool,
+		RpcURL:        rpcURL,
+		Port:          port,
+		clients:       make(map[*websocket.Conn]bool),
+		subscriptions: make(map[*websocket.Conn]map[string]bool),
 	}
 }
 
@@ -84,14 +89,22 @@ func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	defer conn.Close()
 
 	p.mutex.Lock()
 	p.clients[conn] = true
+	p.subscriptions[conn] = make(map[string]bool)
 	p.mutex.Unlock()
 
+	defer func() {
+		p.mutex.Lock()
+		delete(p.clients, conn)
+		delete(p.subscriptions, conn)
+		p.mutex.Unlock()
+		conn.Close()
+	}()
+
 	for {
-		messageType, message, err := conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Println(err)
 			break
@@ -109,22 +122,43 @@ func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case "getRecentTransactions":
 			p.handleRecentTransactions(conn)
 		case "subscribe":
-			go p.handleSubscription(conn, req["txHash"].(string))
+			p.handleSubscription(conn, req["txHash"].(string))
+		case "subscribeToNewTransactions":
+			p.handleNewTransactionsSubscription(conn)
 		}
+	}
+}
 
-		if err := conn.WriteMessage(messageType, message); err != nil {
-			log.Println(err)
-			break
-		}
+func (p *Proxy) handleNewTransactionsSubscription(conn *websocket.Conn) {
+	p.mutex.Lock()
+	p.subscriptions[conn]["newTransactions"] = true
+	p.mutex.Unlock()
+}
+
+func (p *Proxy) BroadcastNewTransaction(tx *types.Transaction) {
+	response := p.createTransactionResponse(tx)
+	message := map[string]interface{}{
+		"type":        "newTransaction",
+		"transaction": response,
 	}
 
 	p.mutex.Lock()
-	delete(p.clients, conn)
+	for conn, subs := range p.subscriptions {
+		if subs["newTransactions"] {
+			err := conn.WriteJSON(message)
+			if err != nil {
+				log.Printf("Error sending new transaction to client: %v", err)
+				delete(p.clients, conn)
+				delete(p.subscriptions, conn)
+				conn.Close()
+			}
+		}
+	}
 	p.mutex.Unlock()
 }
 
 func (p *Proxy) handleTxStatus(conn *websocket.Conn, txHash string) {
-	tx := p.Handler.GetTransaction(txHash)
+	tx := p.Mempool.GetTransaction(txHash)
 	if tx == nil {
 		conn.WriteJSON(map[string]string{"error": "Transaction not found"})
 		return
@@ -135,7 +169,7 @@ func (p *Proxy) handleTxStatus(conn *websocket.Conn, txHash string) {
 }
 
 func (p *Proxy) handleRecentTransactions(conn *websocket.Conn) {
-	transactions := p.Handler.GetRecentTransactions()
+	transactions := p.Mempool.GetRecentTransactions()
 
 	var responses []TransactionResponse
 	for _, tx := range transactions {
@@ -149,25 +183,75 @@ func (p *Proxy) handleRecentTransactions(conn *websocket.Conn) {
 }
 
 func (p *Proxy) handleSubscription(conn *websocket.Conn, txHash string) {
+	p.mutex.Lock()
+	p.subscriptions[conn][txHash] = true
+	p.mutex.Unlock()
+
+	go p.streamTransactionUpdates(conn, txHash)
+}
+
+func (p *Proxy) streamTransactionUpdates(conn *websocket.Conn, txHash string) {
 	for {
-		tx := p.Handler.GetTransaction(txHash)
+		p.mutex.Lock()
+		if !p.subscriptions[conn][txHash] {
+			p.mutex.Unlock()
+			return
+		}
+		p.mutex.Unlock()
+
+		tx := p.Mempool.GetTransaction(txHash)
 		if tx == nil {
 			time.Sleep(time.Second)
 			continue
 		}
 
 		response := p.createTransactionResponse(tx)
-		if err := conn.WriteJSON(response); err != nil {
+		message := map[string]interface{}{
+			"type":   "txUpdate",
+			"txHash": txHash,
+			"data":   response,
+		}
+
+		if err := conn.WriteJSON(message); err != nil {
 			log.Println(err)
+			p.mutex.Lock()
+			delete(p.subscriptions[conn], txHash)
+			p.mutex.Unlock()
 			return
 		}
 
 		if tx.Status == types.StatusIncluded {
+			p.mutex.Lock()
+			delete(p.subscriptions[conn], txHash)
+			p.mutex.Unlock()
 			return
 		}
 
 		time.Sleep(time.Second)
 	}
+}
+
+func (p *Proxy) BroadcastTransactionUpdate(tx *types.Transaction) {
+	response := p.createTransactionResponse(tx)
+	message := map[string]interface{}{
+		"type":   "txUpdate",
+		"txHash": tx.Hash,
+		"data":   response,
+	}
+
+	p.mutex.Lock()
+	for conn, subs := range p.subscriptions {
+		if subs[tx.Hash] {
+			err := conn.WriteJSON(message)
+			if err != nil {
+				log.Printf("Error sending transaction update to client: %v", err)
+				delete(p.clients, conn)
+				delete(p.subscriptions, conn)
+				conn.Close()
+			}
+		}
+	}
+	p.mutex.Unlock()
 }
 
 func (p *Proxy) createTransactionResponse(tx *types.Transaction) TransactionResponse {
@@ -181,7 +265,7 @@ func (p *Proxy) createTransactionResponse(tx *types.Transaction) TransactionResp
 		status = "included"
 	}
 
-	partDecs := p.Handler.GetPartialDecryptions(tx.Hash)
+	partDecs := p.Mempool.GetPartialDecryptions(tx.Hash)
 
 	if tx.Status == types.StatusDecrypted || tx.Status == types.StatusIncluded && tx.RawTransaction != nil {
 		rawTx, err := types.DecodeRawTransaction(tx.DecryptedTransaction.Body.Content[2:])
@@ -245,7 +329,7 @@ func (p *Proxy) proxyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		rawTx := txReq.Params[0]
-		txHash, err := p.Handler.CalculateTxHash(rawTx)
+		txHash, err := utils.CalculateTxHash(rawTx)
 		if err != nil {
 			http.Error(w, "Failed to calculate transaction hash", http.StatusInternalServerError)
 			return
@@ -261,11 +345,12 @@ func (p *Proxy) proxyHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
 
-		if !p.Handler.CheckTransactionDuplicate(txHash) {
+		if !p.Mempool.CheckTransactionDuplicate(txHash) {
 			err = p.Handler.HandleTransaction(rawTx)
 			if err != nil {
 				log.Printf("Failed to handle transaction: %v", err)
 			}
+			p.BroadcastNewTransaction(p.Mempool.GetTransaction(txHash))
 		}
 
 		return

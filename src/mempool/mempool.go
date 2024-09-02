@@ -1,7 +1,9 @@
 package mempool
 
 import (
+	"sort"
 	"sync"
+	"time"
 
 	"github.com/korayakpinar/network/src/types"
 )
@@ -108,4 +110,73 @@ func (m *Mempool) GetPartialDecryptionCount(hash string) int {
 		return tx.(*types.Transaction).PartialDecryptionCount
 	}
 	return 0
+}
+
+func (m *Mempool) CheckTransactionDuplicate(hash string) bool {
+	tx := m.GetTransaction(hash)
+	return tx != nil
+}
+
+func (m *Mempool) CheckTransactionDecrypted(hash string) bool {
+	tx := m.GetTransaction(hash)
+	return tx != nil && tx.Status >= types.StatusDecrypted
+}
+
+func (m *Mempool) CheckTransactionProposed(hash string) bool {
+	tx := m.GetTransaction(hash)
+	return tx != nil && tx.Status >= types.StatusProposed
+}
+
+const MaxNonPendingTransactions = 32
+
+func (m *Mempool) GetRecentTransactions() []*types.Transaction {
+	var allTxs []*types.Transaction
+
+	m.Transactions.Range(func(_, value interface{}) bool {
+		tx := value.(*types.Transaction)
+		allTxs = append(allTxs, tx)
+		return true
+	})
+
+	var pendingTxs []*types.Transaction
+	var otherTxs []*types.Transaction
+
+	for _, tx := range allTxs {
+		if tx.Status == types.StatusPending {
+			pendingTxs = append(pendingTxs, tx)
+		} else {
+			otherTxs = append(otherTxs, tx)
+		}
+	}
+
+	sort.Slice(otherTxs, func(i, j int) bool {
+		return getLatestTimestamp(otherTxs[i]).After(getLatestTimestamp(otherTxs[j]))
+	})
+
+	if len(otherTxs) > MaxNonPendingTransactions {
+		otherTxs = otherTxs[:MaxNonPendingTransactions]
+	}
+
+	sort.Slice(pendingTxs, func(i, j int) bool {
+		return pendingTxs[i].ReceivedAt.After(pendingTxs[j].ReceivedAt)
+	})
+
+	result := append(pendingTxs, otherTxs...)
+
+	return result
+}
+func getLatestTimestamp(tx *types.Transaction) time.Time {
+	latest := tx.ReceivedAt
+
+	if !tx.ProposedAt.IsZero() && tx.ProposedAt.After(latest) {
+		latest = tx.ProposedAt
+	}
+	if !tx.DecryptedAt.IsZero() && tx.DecryptedAt.After(latest) {
+		latest = tx.DecryptedAt
+	}
+	if !tx.IncludedAt.IsZero() && tx.IncludedAt.After(latest) {
+		latest = tx.IncludedAt
+	}
+
+	return latest
 }

@@ -11,17 +11,15 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/korayakpinar/network/src/crypto"
 	"github.com/korayakpinar/network/src/mempool"
 	"github.com/korayakpinar/network/src/message"
+	"github.com/korayakpinar/network/src/proxy"
 	"github.com/korayakpinar/network/src/types"
+	"github.com/korayakpinar/network/src/utils"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	libp2pCrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"google.golang.org/protobuf/proto"
@@ -31,6 +29,7 @@ type Handler struct {
 	sub     *pubsub.Subscription
 	topic   *pubsub.Topic
 	mempool *mempool.Mempool
+	proxy   *proxy.Proxy
 	signers map[uint64]*types.Signer
 	crypto  *crypto.Crypto
 	privKey libp2pCrypto.PrivKey
@@ -42,13 +41,13 @@ type Handler struct {
 	threshold     uint64
 }
 
-func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, signers map[uint64]*types.Signer, privKey libp2pCrypto.PrivKey, rpcUrl, apiPort string, commmitteeSize, threshold, networkIndex, networkSize uint64) *Handler {
-	mempool := mempool.NewMempool()
+func NewHandler(sub *pubsub.Subscription, topic *pubsub.Topic, proxy *proxy.Proxy, mempool *mempool.Mempool, signers map[uint64]*types.Signer, privKey libp2pCrypto.PrivKey, rpcUrl, apiPort string, commmitteeSize, threshold, networkIndex, networkSize uint64) *Handler {
 	crypto := crypto.NewCrypto(apiPort)
 	return &Handler{
 		sub:           sub,
 		topic:         topic,
 		mempool:       mempool,
+		proxy:         proxy,
 		signers:       signers,
 		crypto:        crypto,
 		privKey:       privKey,
@@ -89,7 +88,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 					return
 				}
 			}
-			time.Sleep(time.Second / 4) // Prevent tight loop
+			time.Sleep(time.Second / 8) // Prevent tight loop
 		}
 	}
 }
@@ -111,7 +110,7 @@ func (h *Handler) performLeaderDuties(ctx context.Context, leaderIndex *uint64) 
 	if err := h.publishEncryptedBatch(ctx, encBatch); err != nil {
 		return fmt.Errorf("failed to publish encrypted batch: %w", err)
 	}
-	time.Sleep(3 * time.Second) // Wait for other nodes to prepare partial decryptions
+	//time.Sleep(3 * time.Second) // Wait for other nodes to prepare partial decryptions
 
 	log.Println("Leader duties completed successfully")
 
@@ -229,7 +228,7 @@ func (h *Handler) messageHandlingRoutine(ctx context.Context, errChan chan error
 			log.Println("Context cancelled, stopping message handling routine")
 			return
 		default:
-			time.Sleep(time.Second / 4) // Prevent tight loop
+			time.Sleep(time.Second / 8) // Prevent tight loop
 			if err := h.handleNextMessage(ctx, leaderIndex, CommitteeSize); err != nil {
 				log.Printf("Error handling message: %v", err)
 				errChan <- err
@@ -309,20 +308,22 @@ func (h *Handler) handlePartialDecryptionBatch(msg *message.Message, leaderIndex
 		h.mempool.AddPartialDecryption(txHash, dec.Signer, dec.PartDec)
 	}
 
-	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) && !h.CheckTransactionDecrypted(txHash) {
+	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) && !h.mempool.CheckTransactionDecrypted(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
 		encTx := h.mempool.GetTransaction(txHash).EncryptedTransaction
 		encryptedContent := encTx.Body.EncText
 
-		pks := make([][]byte, CommitteeSize)
-		for i := 0; i < int(CommitteeSize); i++ {
-			pks[i] = h.GetSignerByIndex(uint64(i)).BLSPublicKey
-		}
+		/*
+			pks := make([][]byte, CommitteeSize)
+			for i := 0; i < int(CommitteeSize); i++ {
+				pks[i] = h.GetSignerByIndex(uint64(i)).BLSPublicKey
+			}
+		*/
 
 		partDecs := h.mempool.GetPartialDecryptions(txHash)
 
 		// TODO: Seperate the committee size and the nodes count, for now we are using the same number
-		content, err := h.crypto.DecryptTransaction(encryptedContent, pks, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteeSize+1)
+		content, err := h.crypto.DecryptTransaction(encryptedContent, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteeSize+1)
 
 		if err != nil {
 			return fmt.Errorf("failed to decrypt transaction: %w", err)
@@ -458,19 +459,21 @@ func (h *Handler) HandleTransaction(tx string) error {
 
 	log.Println("Random indexes: ", randomIndexes)
 
-	pks := make([][]byte, h.committeeSize)
+	/*
+		pks := make([][]byte, h.committeeSize)
 
-	for index, signer := range h.GetSigners() {
-		pks[index] = signer.BLSPublicKey
-	}
+		for index, signer := range h.GetSigners() {
+			pks[index] = signer.BLSPublicKey
+		}
+	*/
 
-	encResponse, err := h.crypto.EncryptTransaction([]byte(tx), pks, randThreshold, h.committeeSize)
+	encResponse, err := h.crypto.EncryptTransaction([]byte(tx), randThreshold, h.committeeSize)
 	if err != nil {
 		log.Println("Error while encrypting the transaction: ", err)
 		return err
 	}
 
-	txHash, err := h.CalculateTxHash(tx)
+	txHash, err := utils.CalculateTxHash(tx)
 	if err != nil {
 		log.Println("Error while calculating the transaction hash: ", err)
 		return err
@@ -535,79 +538,6 @@ func (h *Handler) HandleTransaction(tx string) error {
 	return nil
 }
 
-func (h *Handler) GetTransaction(hash string) *types.Transaction {
-	return h.mempool.GetTransaction(hash)
-}
-
-func (h *Handler) CheckTransactionDuplicate(hash string) bool {
-	tx := h.mempool.GetTransaction(hash)
-	return tx != nil
-}
-
-func (h *Handler) CheckTransactionDecrypted(hash string) bool {
-	tx := h.mempool.GetTransaction(hash)
-	return tx != nil && tx.Status >= types.StatusDecrypted
-}
-
-func (h *Handler) CheckTransactionProposed(hash string) bool {
-	tx := h.mempool.GetTransaction(hash)
-	return tx != nil && tx.Status >= types.StatusProposed
-}
-
-const MaxNonPendingTransactions = 64
-
-func (h *Handler) GetRecentTransactions() []*types.Transaction {
-	var allTxs []*types.Transaction
-
-	h.mempool.Transactions.Range(func(_, value interface{}) bool {
-		tx := value.(*types.Transaction)
-		allTxs = append(allTxs, tx)
-		return true
-	})
-
-	var pendingTxs []*types.Transaction
-	var otherTxs []*types.Transaction
-
-	for _, tx := range allTxs {
-		if tx.Status == types.StatusPending {
-			pendingTxs = append(pendingTxs, tx)
-		} else {
-			otherTxs = append(otherTxs, tx)
-		}
-	}
-
-	sort.Slice(otherTxs, func(i, j int) bool {
-		return getLatestTimestamp(otherTxs[i]).After(getLatestTimestamp(otherTxs[j]))
-	})
-
-	if len(otherTxs) > MaxNonPendingTransactions {
-		otherTxs = otherTxs[:MaxNonPendingTransactions]
-	}
-
-	sort.Slice(pendingTxs, func(i, j int) bool {
-		return pendingTxs[i].ReceivedAt.After(pendingTxs[j].ReceivedAt)
-	})
-
-	result := append(pendingTxs, otherTxs...)
-
-	return result
-}
-func getLatestTimestamp(tx *types.Transaction) time.Time {
-	latest := tx.ReceivedAt
-
-	if !tx.ProposedAt.IsZero() && tx.ProposedAt.After(latest) {
-		latest = tx.ProposedAt
-	}
-	if !tx.DecryptedAt.IsZero() && tx.DecryptedAt.After(latest) {
-		latest = tx.DecryptedAt
-	}
-	if !tx.IncludedAt.IsZero() && tx.IncludedAt.After(latest) {
-		latest = tx.IncludedAt
-	}
-
-	return latest
-}
-
 func (h *Handler) GetPartialDecryptionCount(hash string) int {
 	tx := h.mempool.GetTransaction(hash)
 	if tx != nil {
@@ -622,35 +552,6 @@ func (h *Handler) GetMetadataOfTx(hash string) (committeeSize, threshold int) {
 		return tx.CommitteeSize, tx.Threshold
 	}
 	return 0, 0
-}
-
-func (h *Handler) GetPartialDecryptions(hash string) map[uint64][]byte {
-	return h.mempool.GetPartialDecryptions(hash)
-}
-
-func (h *Handler) CalculateTxHash(rawTx string) (string, error) {
-	// Remove the '0x' prefix if present
-	rawTx = strings.TrimPrefix(rawTx, "0x")
-
-	// Decode the hex string to bytes
-	txBytes, err := hex.DecodeString(rawTx)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode hex string: %v", err)
-	}
-
-	// Create a new transaction object
-	tx := new(ethTypes.Transaction)
-
-	// Decode the RLP-encoded transaction
-	err = rlp.DecodeBytes(txBytes, tx)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode RLP: %v", err)
-	}
-
-	// Calculate the hash
-	hash := tx.Hash()
-
-	return hash.Hex(), nil
 }
 
 func NewLocalSigner(index uint64, address common.Address, blsKey []byte) types.Signer {
@@ -737,4 +638,12 @@ func sendRawTransaction(rpcUrl string, content string) (string, error) {
 
 	// Return the transaction hash
 	return response.Result, nil
+}
+
+func (h *Handler) BroadcastNewTransaction(tx *types.Transaction) {
+	h.proxy.BroadcastNewTransaction(tx)
+}
+
+func (h *Handler) BroadcastTransactionUpdate(tx *types.Transaction) {
+	h.proxy.BroadcastTransactionUpdate(tx)
 }

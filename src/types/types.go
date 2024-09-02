@@ -256,3 +256,9 @@ type KeyPair struct {
 	BLSPrivateKey   string
 	BLSPublicKey    string
 }
+
+type Handler interface {
+	BroadcastNewTransaction(tx *Transaction)
+	BroadcastTransactionUpdate(tx *Transaction)
+	HandleTransaction(tx string) error
+}

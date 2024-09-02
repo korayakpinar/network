@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -207,4 +209,29 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func CalculateTxHash(rawTx string) (string, error) {
+	// Remove the '0x' prefix if present
+	rawTx = strings.TrimPrefix(rawTx, "0x")
+
+	// Decode the hex string to bytes
+	txBytes, err := hex.DecodeString(rawTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode hex string: %v", err)
+	}
+
+	// Create a new transaction object
+	tx := new(types.Transaction)
+
+	// Decode the RLP-encoded transaction
+	err = rlp.DecodeBytes(txBytes, tx)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode RLP: %v", err)
+	}
+
+	// Calculate the hash
+	hash := tx.Hash()
+
+	return hash.Hex(), nil
 }
