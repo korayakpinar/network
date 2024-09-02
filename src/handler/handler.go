@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -94,7 +96,7 @@ func (h *Handler) leaderRoutine(ctx context.Context, errChan chan error, leaderI
 
 func (h *Handler) performLeaderDuties(ctx context.Context, leaderIndex *uint64) error {
 	log.Println("Performing leader duties")
-	encTxs := h.mempool.GetEncryptedTransactions()
+	encTxs := h.mempool.GetPendingTransactions()
 	if len(encTxs) == 0 {
 		log.Println("No transactions to submit")
 		return nil
@@ -119,11 +121,11 @@ func (h *Handler) performLeaderDuties(ctx context.Context, leaderIndex *uint64) 
 	return nil
 }
 
-func (h *Handler) prepareEncryptedBatch(encTxs []*types.EncryptedTransaction) (*types.EncryptedBatch, error) {
+func (h *Handler) prepareEncryptedBatch(encTxs []*types.Transaction) (*types.EncryptedBatch, error) {
 	log.Println("Preparing encrypted batch")
 	txHeaders := []*types.EncryptedTxHeader{}
 	for _, tx := range encTxs {
-		txHeaders = append(txHeaders, tx.Header)
+		txHeaders = append(txHeaders, tx.EncryptedTransaction.Header)
 	}
 
 	encBatchBody := &types.BatchBody{
@@ -191,9 +193,9 @@ func (h *Handler) publishEncryptedBatch(ctx context.Context, encBatch *types.Enc
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	h.mempool.IncludeEncryptedTxs(txHashes)
+	h.mempool.SetMultipleTransactionsProposed(txHashes)
 	for _, txHash := range txHashes {
-		incTx := h.mempool.GetIncludedTransaction(txHash)
+		incTx := h.mempool.GetTransaction(txHash).EncryptedTransaction
 		if incTx != nil {
 			log.Printf("Transaction included: %s", txHash)
 			for _, id := range incTx.Header.PkIDs {
@@ -283,7 +285,9 @@ func (h *Handler) handleEncryptedTransaction(msg *message.Message) error {
 		},
 	}
 	log.Printf("Encrypted transaction received: %s", encTx.Header.Hash)
-	h.mempool.AddEncryptedTx(encTx)
+	newTx := types.NewTransaction(nil, encTx.Header.Hash)
+	newTx.SetEncrypted(encTx)
+	h.mempool.AddTransaction(newTx)
 	return nil
 }
 
@@ -307,7 +311,7 @@ func (h *Handler) handlePartialDecryptionBatch(msg *message.Message, leaderIndex
 
 	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) && !h.CheckTransactionDecrypted(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
-		encTx := h.mempool.GetIncludedTransaction(txHash)
+		encTx := h.mempool.GetTransaction(txHash).EncryptedTransaction
 		encryptedContent := encTx.Body.EncText
 
 		pks := make([][]byte, CommitteeSize)
@@ -323,7 +327,7 @@ func (h *Handler) handlePartialDecryptionBatch(msg *message.Message, leaderIndex
 		if err != nil {
 			return fmt.Errorf("failed to decrypt transaction: %w", err)
 		}
-		h.mempool.AddDecryptedTx(&types.DecryptedTransaction{
+		h.mempool.SetTransactionDecrypted(txHash, &types.DecryptedTransaction{
 			Header: &types.DecryptedTxHeader{
 				Hash:  txHash,
 				PkIDs: encTx.Header.PkIDs,
@@ -338,6 +342,8 @@ func (h *Handler) handlePartialDecryptionBatch(msg *message.Message, leaderIndex
 			if err != nil {
 				return fmt.Errorf("failed to send transaction to blockchain: %w", err)
 			}
+			h.mempool.SetTransactionIncluded(txHash)
+
 			log.Printf("Transaction sent to the blockchain: %s", tx)
 		}
 	}
@@ -408,7 +414,7 @@ func (h *Handler) handleEncryptedBatch(ctx context.Context, msg *message.Message
 		return nil
 	}
 
-	h.mempool.IncludeEncryptedTxs(txHashes)
+	h.mempool.SetMultipleTransactionsProposed(txHashes)
 
 	*leaderIndex++
 	*leaderIndex %= h.networkSize
@@ -430,7 +436,7 @@ func (h *Handler) handleOrderSignature(msg *message.Message) error {
 		}
 		orderSig.TxHeaders = append(orderSig.TxHeaders, newTx)
 	}
-	h.mempool.AddOrderSig(orderSigMsg.BlockNum, *orderSig)
+
 	log.Printf("Order signature added for block number: %d", orderSigMsg.BlockNum)
 	return nil
 }
@@ -448,6 +454,8 @@ func (h *Handler) HandleTransaction(tx string) error {
 		randomIndexes[i] = uint64(i)
 	}
 
+	randThreshold := uint64(rand.Intn(int(h.committeeSize)-3)) + 1
+
 	log.Println("Random indexes: ", randomIndexes)
 
 	pks := make([][]byte, h.committeeSize)
@@ -456,7 +464,7 @@ func (h *Handler) HandleTransaction(tx string) error {
 		pks[index] = signer.BLSPublicKey
 	}
 
-	encResponse, err := h.crypto.EncryptTransaction([]byte(tx), pks, h.threshold, h.committeeSize)
+	encResponse, err := h.crypto.EncryptTransaction([]byte(tx), pks, randThreshold, h.committeeSize)
 	if err != nil {
 		log.Println("Error while encrypting the transaction: ", err)
 		return err
@@ -482,7 +490,7 @@ func (h *Handler) HandleTransaction(tx string) error {
 		Sa2:       encResponse.Sa2,
 		Iv:        encResponse.Iv,
 		EncText:   encResponse.Enc,
-		Threshold: h.threshold,
+		Threshold: randThreshold,
 	}
 
 	encTx := &types.EncryptedTransaction{
@@ -490,7 +498,9 @@ func (h *Handler) HandleTransaction(tx string) error {
 		Body:   encTxBody,
 	}
 
-	h.mempool.AddEncryptedTx(encTx)
+	newTx := types.NewTransaction(&tx, txHash)
+	newTx.SetEncrypted(encTx)
+	h.mempool.AddTransaction(newTx)
 
 	msg := &message.Message{
 		Message: &message.Message_EncryptedTransaction{
@@ -511,7 +521,7 @@ func (h *Handler) HandleTransaction(tx string) error {
 		},
 		MessageType: message.MessageType_ENCRYPTED_TRANSACTION,
 	}
-	log.Println("Threshold number of message: ", h.threshold)
+	log.Println("Threshold number of message: ", encTx.Body.Threshold)
 	bytesMsg, err := proto.Marshal(msg)
 	if err != nil {
 		return err
@@ -525,49 +535,97 @@ func (h *Handler) HandleTransaction(tx string) error {
 	return nil
 }
 
-func (h *Handler) CheckTransactionDuplicate(txHash string) bool {
-	encTx := h.mempool.GetEncryptedTransaction(txHash)
-	decTx := h.mempool.GetDecryptedTransaction(txHash)
-	incTx := h.mempool.GetIncludedTransaction(txHash)
+func (h *Handler) GetTransaction(hash string) *types.Transaction {
+	return h.mempool.GetTransaction(hash)
+}
 
-	if encTx != nil || decTx != nil || incTx != nil {
-		return true
-	}
-
-	return false
+func (h *Handler) CheckTransactionDuplicate(hash string) bool {
+	tx := h.mempool.GetTransaction(hash)
+	return tx != nil
 }
 
 func (h *Handler) CheckTransactionDecrypted(hash string) bool {
-	decTx := h.mempool.GetDecryptedTransaction(hash)
-	return decTx != nil
+	tx := h.mempool.GetTransaction(hash)
+	return tx != nil && tx.Status >= types.StatusDecrypted
 }
 
 func (h *Handler) CheckTransactionProposed(hash string) bool {
-	incTx := h.mempool.GetIncludedTransaction(hash)
-	return incTx != nil
+	tx := h.mempool.GetTransaction(hash)
+	return tx != nil && tx.Status >= types.StatusProposed
 }
 
-func (h *Handler) GetRecentTransactions() []*types.EncryptedTransaction {
-	recentTxs := h.mempool.GetIncludedTransactions()
-	return recentTxs
+const MaxNonPendingTransactions = 64
+
+func (h *Handler) GetRecentTransactions() []*types.Transaction {
+	var allTxs []*types.Transaction
+
+	h.mempool.Transactions.Range(func(_, value interface{}) bool {
+		tx := value.(*types.Transaction)
+		allTxs = append(allTxs, tx)
+		return true
+	})
+
+	var pendingTxs []*types.Transaction
+	var otherTxs []*types.Transaction
+
+	for _, tx := range allTxs {
+		if tx.Status == types.StatusPending {
+			pendingTxs = append(pendingTxs, tx)
+		} else {
+			otherTxs = append(otherTxs, tx)
+		}
+	}
+
+	sort.Slice(otherTxs, func(i, j int) bool {
+		return getLatestTimestamp(otherTxs[i]).After(getLatestTimestamp(otherTxs[j]))
+	})
+
+	if len(otherTxs) > MaxNonPendingTransactions {
+		otherTxs = otherTxs[:MaxNonPendingTransactions]
+	}
+
+	sort.Slice(pendingTxs, func(i, j int) bool {
+		return pendingTxs[i].ReceivedAt.After(pendingTxs[j].ReceivedAt)
+	})
+
+	result := append(pendingTxs, otherTxs...)
+
+	return result
+}
+func getLatestTimestamp(tx *types.Transaction) time.Time {
+	latest := tx.ReceivedAt
+
+	if !tx.ProposedAt.IsZero() && tx.ProposedAt.After(latest) {
+		latest = tx.ProposedAt
+	}
+	if !tx.DecryptedAt.IsZero() && tx.DecryptedAt.After(latest) {
+		latest = tx.DecryptedAt
+	}
+	if !tx.IncludedAt.IsZero() && tx.IncludedAt.After(latest) {
+		latest = tx.IncludedAt
+	}
+
+	return latest
 }
 
 func (h *Handler) GetPartialDecryptionCount(hash string) int {
-	return h.mempool.GetPartialDecryptionCount(hash)
+	tx := h.mempool.GetTransaction(hash)
+	if tx != nil {
+		return tx.PartialDecryptionCount
+	}
+	return 0
 }
 
 func (h *Handler) GetMetadataOfTx(hash string) (committeeSize, threshold int) {
-	encTx := h.mempool.GetEncryptedTransaction(hash)
-	if encTx != nil {
-		return len(encTx.Header.PkIDs), int(encTx.Body.Threshold)
+	tx := h.mempool.GetTransaction(hash)
+	if tx != nil {
+		return tx.CommitteeSize, tx.Threshold
 	}
-
-	incTx := h.mempool.GetIncludedTransaction(hash)
-	if incTx != nil {
-		return len(incTx.Header.PkIDs), int(incTx.Body.Threshold)
-	}
-
 	return 0, 0
+}
+
+func (h *Handler) GetPartialDecryptions(hash string) map[uint64][]byte {
+	return h.mempool.GetPartialDecryptions(hash)
 }
 
 func (h *Handler) CalculateTxHash(rawTx string) (string, error) {
@@ -654,6 +712,7 @@ func sendRawTransaction(rpcUrl string, content string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("HTTP POST error: %v", err)
 	}
+
 	defer resp.Body.Close()
 
 	// Read the response body
@@ -668,6 +727,8 @@ func sendRawTransaction(rpcUrl string, content string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("JSON decoding error: %v", err)
 	}
+
+	fmt.Println("Response: ", response)
 
 	// Check for errors
 	if response.Error != nil && response.Error.Message != "already known" {
