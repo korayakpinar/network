@@ -106,13 +106,13 @@ func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Println(err)
+			log.Printf("WebSocket read error: %v", err)
 			break
 		}
 
 		var req map[string]interface{}
 		if err := json.Unmarshal(message, &req); err != nil {
-			log.Println(err)
+			log.Printf("JSON unmarshal error: %v", err)
 			continue
 		}
 
@@ -127,6 +127,8 @@ func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			p.handleNewTransactionsSubscription(conn)
 		}
 	}
+
+	log.Println("WebSocket connection closed")
 }
 
 func (p *Proxy) handleNewTransactionsSubscription(conn *websocket.Conn) {
@@ -191,43 +193,40 @@ func (p *Proxy) handleSubscription(conn *websocket.Conn, txHash string) {
 }
 
 func (p *Proxy) streamTransactionUpdates(conn *websocket.Conn, txHash string) {
+	ticker := time.NewTicker(time.Second / 4)
+	defer ticker.Stop()
+
 	for {
-		p.mutex.Lock()
-		if !p.subscriptions[conn][txHash] {
-			p.mutex.Unlock()
-			return
-		}
-		p.mutex.Unlock()
-
-		tx := p.Mempool.GetTransaction(txHash)
-		if tx == nil {
-			time.Sleep(time.Second)
-			continue
-		}
-
-		response := p.createTransactionResponse(tx)
-		message := map[string]interface{}{
-			"type":   "txUpdate",
-			"txHash": txHash,
-			"data":   response,
-		}
-
-		if err := conn.WriteJSON(message); err != nil {
-			log.Println(err)
+		select {
+		case <-ticker.C:
 			p.mutex.Lock()
-			delete(p.subscriptions[conn], txHash)
+			if !p.subscriptions[conn][txHash] {
+				p.mutex.Unlock()
+				return
+			}
 			p.mutex.Unlock()
-			return
-		}
 
-		if tx.Status == types.StatusIncluded {
-			p.mutex.Lock()
-			delete(p.subscriptions[conn], txHash)
-			p.mutex.Unlock()
-			return
-		}
+			tx := p.Mempool.GetTransaction(txHash)
+			if tx == nil {
+				continue
+			}
 
-		time.Sleep(time.Second)
+			response := p.createTransactionResponse(tx)
+			message := map[string]interface{}{
+				"type":   "txUpdate",
+				"txHash": txHash,
+				"data":   response,
+			}
+
+			if err := conn.WriteJSON(message); err != nil {
+				log.Printf("Error sending transaction update: %v", err)
+				p.mutex.Lock()
+				delete(p.subscriptions[conn], txHash)
+				p.mutex.Unlock()
+				return
+			}
+
+		}
 	}
 }
 
