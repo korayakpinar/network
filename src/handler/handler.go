@@ -538,6 +538,46 @@ func (h *Handler) HandleTransaction(tx string) error {
 	return nil
 }
 
+func (h *Handler) HandleEncryptedTransaction(encTx *types.EncryptedTransaction) error {
+	log.Printf("Handling encrypted transaction with hash %s and threshold %d", encTx.Header.Hash, encTx.Body.Threshold)
+
+	newTx := types.NewTransaction(nil, encTx.Header.Hash)
+	newTx.SetEncrypted(encTx)
+	h.mempool.AddTransaction(newTx)
+
+	msg := &message.Message{
+		Message: &message.Message_EncryptedTransaction{
+			EncryptedTransaction: &message.EncryptedTransaction{
+				Header: &message.TransactionHeader{
+					Hash:    encTx.Header.Hash,
+					GammaG2: encTx.Header.GammaG2,
+					PkIDs:   encTx.Header.PkIDs,
+				},
+				Body: &message.TransactionBody{
+					Sa1:     encTx.Body.Sa1,
+					Sa2:     encTx.Body.Sa2,
+					Iv:      encTx.Body.Iv,
+					EncText: encTx.Body.EncText,
+					T:       encTx.Body.Threshold,
+				},
+			},
+		},
+		MessageType: message.MessageType_ENCRYPTED_TRANSACTION,
+	}
+
+	bytesMsg, err := proto.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	err = h.topic.Publish(context.Background(), bytesMsg)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (h *Handler) GetPartialDecryptionCount(hash string) int {
 	tx := h.mempool.GetTransaction(hash)
 	if tx != nil {

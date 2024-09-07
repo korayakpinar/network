@@ -1,11 +1,13 @@
 package proxy
 
 import (
+	"bytes"
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,13 +20,14 @@ import (
 )
 
 type Proxy struct {
-	Mempool       *mempool.Mempool
-	Handler       types.Handler
-	RpcURL        string
-	Port          string
-	clients       map[*websocket.Conn]bool
-	subscriptions map[*websocket.Conn]map[string]bool
-	mutex         sync.Mutex
+	Mempool                         *mempool.Mempool
+	Handler                         types.Handler
+	RpcURL                          string
+	Port                            string
+	clients                         map[*websocket.Conn]bool
+	subscriptions                   map[*websocket.Conn]map[string]bool
+	recentTransactionsSubscriptions map[*websocket.Conn]bool
+	mutex                           sync.Mutex
 }
 
 var upgrader = websocket.Upgrader{
@@ -38,6 +41,22 @@ type TransactionRequest struct {
 	JSONRPC string   `json:"jsonrpc"`
 	Method  string   `json:"method"`
 	Params  []string `json:"params"`
+}
+
+type EncryptedTransactionRequest struct {
+	ID      int64  `json:"id"`
+	JSONRPC string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  []struct {
+		Hash        string   `json:"hash"`
+		EncryptedTx string   `json:"encryptedTx"`
+		PkIDs       []uint64 `json:"pkIDs"`
+		GammaG2     []byte   `json:"gammaG2"`
+		Threshold   uint64   `json:"threshold"`
+		Sa1         []byte   `json:"sa1"`
+		Sa2         []byte   `json:"sa2"`
+		Iv          []byte   `json:"iv"`
+	} `json:"params"`
 }
 
 type TransactionResponse struct {
@@ -54,14 +73,20 @@ type TransactionResponse struct {
 	PartialDecryptions     map[uint64][]byte    `json:"partialDecryptions,omitempty"`
 }
 
+type RecentTransactionsUpdate struct {
+	Type         string                `json:"type"`
+	Transactions []TransactionResponse `json:"transactions"`
+}
+
 func NewProxy(handler types.Handler, mempool *mempool.Mempool, rpcURL, port string) *Proxy {
 	return &Proxy{
-		Handler:       handler,
-		Mempool:       mempool,
-		RpcURL:        rpcURL,
-		Port:          port,
-		clients:       make(map[*websocket.Conn]bool),
-		subscriptions: make(map[*websocket.Conn]map[string]bool),
+		Handler:                         handler,
+		Mempool:                         mempool,
+		RpcURL:                          rpcURL,
+		Port:                            port,
+		clients:                         make(map[*websocket.Conn]bool),
+		subscriptions:                   make(map[*websocket.Conn]map[string]bool),
+		recentTransactionsSubscriptions: make(map[*websocket.Conn]bool),
 	}
 }
 
@@ -79,8 +104,19 @@ func (p *Proxy) Start() {
 
 	handler := c.Handler(r)
 
-	log.Printf("Proxy server is running on port %s", p.Port)
-	log.Fatal(http.ListenAndServe(":"+p.Port, handler))
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	server := &http.Server{
+		Addr:      ":" + p.Port,
+		Handler:   handler,
+		TLSConfig: tlsConfig,
+	}
+
+	log.Printf("HTTPS proxy server is running on port %s", p.Port)
+	log.Fatal(server.ListenAndServe())
+	//log.Fatal(server.ListenAndServeTLS("/app/cert.pem", "/app/key.pem"))
 }
 
 func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +135,7 @@ func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		p.mutex.Lock()
 		delete(p.clients, conn)
 		delete(p.subscriptions, conn)
+		delete(p.recentTransactionsSubscriptions, conn)
 		p.mutex.Unlock()
 		conn.Close()
 	}()
@@ -157,6 +194,8 @@ func (p *Proxy) BroadcastNewTransaction(tx *types.Transaction) {
 		}
 	}
 	p.mutex.Unlock()
+
+	p.BroadcastRecentTransactionsUpdate()
 }
 
 func (p *Proxy) handleTxStatus(conn *websocket.Conn, txHash string) {
@@ -178,10 +217,17 @@ func (p *Proxy) handleRecentTransactions(conn *websocket.Conn) {
 		responses = append(responses, p.createTransactionResponse(tx))
 	}
 
-	conn.WriteJSON(map[string]interface{}{
-		"type":         "recentTransactions",
-		"transactions": responses,
-	})
+	update := RecentTransactionsUpdate{
+		Type:         "recentTransactions",
+		Transactions: responses,
+	}
+
+	conn.WriteJSON(update)
+
+	// Subscribe to real-time updates
+	p.mutex.Lock()
+	p.recentTransactionsSubscriptions[conn] = true
+	p.mutex.Unlock()
 }
 
 func (p *Proxy) handleSubscription(conn *websocket.Conn, txHash string) {
@@ -248,6 +294,33 @@ func (p *Proxy) BroadcastTransactionUpdate(tx *types.Transaction) {
 				delete(p.subscriptions, conn)
 				conn.Close()
 			}
+		}
+	}
+	p.mutex.Unlock()
+
+	p.BroadcastRecentTransactionsUpdate()
+}
+
+func (p *Proxy) BroadcastRecentTransactionsUpdate() {
+	transactions := p.Mempool.GetRecentTransactions()
+
+	var responses []TransactionResponse
+	for _, tx := range transactions {
+		responses = append(responses, p.createTransactionResponse(tx))
+	}
+
+	update := RecentTransactionsUpdate{
+		Type:         "recentTransactionsUpdate",
+		Transactions: responses,
+	}
+
+	p.mutex.Lock()
+	for conn := range p.recentTransactionsSubscriptions {
+		err := conn.WriteJSON(update)
+		if err != nil {
+			log.Printf("Error sending recent transactions update to client: %v", err)
+			delete(p.recentTransactionsSubscriptions, conn)
+			conn.Close()
 		}
 	}
 	p.mutex.Unlock()
@@ -319,71 +392,135 @@ func (p *Proxy) proxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if method == "eth_sendTransaction" || method == "eth_sendRawTransaction" {
-		var txReq TransactionRequest
-		if err := json.Unmarshal(body, &txReq); err != nil {
-			log.Printf("Failed to unmarshal JSON: %v", err)
-			http.Error(w, "Invalid JSON request", http.StatusBadRequest)
-			return
-		}
+	switch method {
+	case "eth_sendTransaction", "eth_sendRawTransaction":
+		p.handleRawTransaction(w, body)
+	case "eth_sendEncryptedTransaction":
+		p.handleEncryptedTransaction(w, body)
+	default:
+		p.forwardToRPC(w, body)
+	}
+}
 
-		rawTx := txReq.Params[0]
-		txHash, err := utils.CalculateTxHash(rawTx)
-		if err != nil {
-			http.Error(w, "Failed to calculate transaction hash", http.StatusInternalServerError)
-			return
-		}
-
-		response := map[string]interface{}{
-			"jsonrpc": "2.0",
-			"result":  txHash,
-			"id":      txReq.ID,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
-
-		if !p.Mempool.CheckTransactionDuplicate(txHash) {
-			err = p.Handler.HandleTransaction(rawTx)
-			if err != nil {
-				log.Printf("Failed to handle transaction: %v", err)
-			}
-			p.BroadcastNewTransaction(p.Mempool.GetTransaction(txHash))
-		}
-
+func (p *Proxy) handleRawTransaction(w http.ResponseWriter, body []byte) {
+	var txReq TransactionRequest
+	if err := json.Unmarshal(body, &txReq); err != nil {
+		log.Printf("Failed to unmarshal JSON: %v", err)
+		http.Error(w, "Invalid JSON request", http.StatusBadRequest)
 		return
 	}
 
-	respBody, statusCode, err := p.forwardRequest(body)
+	rawTx := txReq.Params[0]
+	txHash, err := utils.CalculateTxHash(rawTx)
 	if err != nil {
-		http.Error(w, "Failed to forward request", http.StatusInternalServerError)
+		http.Error(w, "Failed to calculate transaction hash", http.StatusInternalServerError)
 		return
+	}
+
+	response := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"result":  txHash,
+		"id":      txReq.ID,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	w.Write(respBody)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+
+	if !p.Mempool.CheckTransactionDuplicate(txHash) {
+		err = p.Handler.HandleTransaction(rawTx)
+		if err != nil {
+			log.Printf("Failed to handle transaction: %v", err)
+		}
+		p.BroadcastNewTransaction(p.Mempool.GetTransaction(txHash))
+	}
 }
 
-func (p *Proxy) forwardRequest(body []byte) ([]byte, int, error) {
-	req, err := http.NewRequest("POST", p.RpcURL, strings.NewReader(string(body)))
+func (p *Proxy) handleEncryptedTransaction(w http.ResponseWriter, body []byte) {
+	var txReq EncryptedTransactionRequest
+	if err := json.Unmarshal(body, &txReq); err != nil {
+		log.Printf("Failed to unmarshal encrypted transaction JSON: %v", err)
+		http.Error(w, "Invalid JSON request", http.StatusBadRequest)
+		return
+	}
+
+	if len(txReq.Params) == 0 {
+		http.Error(w, "No parameters provided", http.StatusBadRequest)
+		return
+	}
+
+	encTx := txReq.Params[0]
+
+	// Use the hash from the request
+	txHash := encTx.Hash
+
+	// Create types.EncryptedTransaction
+	encryptedTransaction := &types.EncryptedTransaction{
+		Header: &types.EncryptedTxHeader{
+			Hash:    txHash,
+			GammaG2: encTx.GammaG2,
+			PkIDs:   encTx.PkIDs,
+		},
+		Body: &types.EncryptedTxBody{
+			Sa1:       encTx.Sa1,
+			Sa2:       encTx.Sa2,
+			Iv:        encTx.Iv,
+			EncText:   []byte(encTx.EncryptedTx),
+			Threshold: encTx.Threshold,
+		},
+	}
+
+	fmt.Println(txHash)
+	fmt.Println(encTx.GammaG2)
+	fmt.Println(encTx.PkIDs)
+	fmt.Println(len(encTx.PkIDs))
+	fmt.Println(encTx.Threshold)
+	fmt.Println(encTx.EncryptedTx)
+
+	// Prepare the response
+	response := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"result":  txHash,
+		"id":      txReq.ID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+
+	// Handle the encrypted transaction if it's not a duplicate
+	if !p.Mempool.CheckTransactionDuplicate(txHash) {
+		err := p.Handler.HandleEncryptedTransaction(encryptedTransaction)
+		if err != nil {
+			log.Printf("Failed to handle encrypted transaction: %v", err)
+		}
+		p.BroadcastNewTransaction(p.Mempool.GetTransaction(txHash))
+	}
+}
+
+func (p *Proxy) forwardToRPC(w http.ResponseWriter, body []byte) {
+	req, err := http.NewRequest("POST", p.RpcURL, bytes.NewReader(body))
 	if err != nil {
-		return nil, 0, err
+		http.Error(w, "Failed to create forward request", http.StatusInternalServerError)
+		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, 0, err
+		http.Error(w, "Failed to forward request", http.StatusInternalServerError)
+		return
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, 0, err
+		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+		return
 	}
 
-	return responseBody, resp.StatusCode, nil
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	w.Write(responseBody)
 }

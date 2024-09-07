@@ -25,6 +25,9 @@ func (c *Crypto) EncryptTransaction(msg []byte, t uint64, n uint64) (*EncryptRes
 		T:   t,
 		N:   n,
 	}
+
+	fmt.Println("Encrypting transaction with t=", t, "n=", n)
+
 	data, err := proto.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -75,6 +78,8 @@ func (c *Crypto) DecryptTransaction(enc []byte, parts map[uint64][]byte, gammaG2
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("Decrypting transaction with t=", t, "n=", n)
 
 	postReader := bytes.NewReader(data)
 

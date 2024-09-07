@@ -261,4 +261,5 @@ type Handler interface {
 	BroadcastNewTransaction(tx *Transaction)
 	BroadcastTransactionUpdate(tx *Transaction)
 	HandleTransaction(tx string) error
+	HandleEncryptedTransaction(*EncryptedTransaction) error
 }
