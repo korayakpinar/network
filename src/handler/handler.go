@@ -132,7 +132,7 @@ func (h *Handler) prepareEncryptedBatch(encTxs []*types.Transaction) (*types.Enc
 	}
 
 	hashBytes := sha256.Sum256(encBatchBody.Bytes())
-	hashDigest := hashBytes[:] // Bu, 32 byte uzunluğunda bir []byte olacak
+	hashDigest := hashBytes[:]
 
 	sig, err := h.privKey.Sign(hashDigest)
 	if err != nil {
@@ -324,22 +324,32 @@ func (h *Handler) handlePartialDecryptionBatch(msg *message.Message, leaderIndex
 
 		// TODO: Seperate the committee size and the nodes count, for now we are using the same number
 		content, err := h.crypto.DecryptTransaction(encryptedContent, partDecs, encTx.Header.GammaG2, encTx.Body.Sa1, encTx.Body.Sa2, encTx.Body.Iv, encTx.Body.Threshold, CommitteeSize+1)
-
 		if err != nil {
 			return fmt.Errorf("failed to decrypt transaction: %w", err)
 		}
+
+		var correctedContent string
+
+		if h.mempool.CheckTransactionAlreadyEncrypted(txHash) {
+			correctedContent = "0x" + hex.EncodeToString(content)
+			fmt.Println("Its already encrypted and corrected content: ", correctedContent)
+		} else {
+			correctedContent = string(content)
+			fmt.Println("Corrected content: ", correctedContent)
+		}
+
 		h.mempool.SetTransactionDecrypted(txHash, &types.DecryptedTransaction{
 			Header: &types.DecryptedTxHeader{
 				Hash:  txHash,
 				PkIDs: encTx.Header.PkIDs,
 			},
 			Body: &types.DecryptedTxBody{
-				Content: string(content),
+				Content: correctedContent,
 			},
 		})
 		log.Printf("Transaction decrypted: %s", txHash)
 		if h.networkIndex == 0 {
-			tx, err := sendRawTransaction(h.rpcUrl, string(content))
+			tx, err := sendRawTransaction(h.rpcUrl, correctedContent)
 			if err != nil {
 				return fmt.Errorf("failed to send transaction to blockchain: %w", err)
 			}
@@ -541,9 +551,9 @@ func (h *Handler) HandleTransaction(tx string) error {
 func (h *Handler) HandleEncryptedTransaction(encTx *types.EncryptedTransaction) error {
 	log.Printf("Handling encrypted transaction with hash %s and threshold %d", encTx.Header.Hash, encTx.Body.Threshold)
 
-	newTx := types.NewTransaction(nil, encTx.Header.Hash)
-	newTx.SetEncrypted(encTx)
+	newTx := types.NewEncryptedTransaction(encTx.Header.Hash, encTx)
 	h.mempool.AddTransaction(newTx)
+	fmt.Println("Transaction added to the mempool, hash: ", encTx.Header.Hash, " Already encrypted: ", h.mempool.GetTransaction(encTx.Header.Hash).AlreadyEncrypted)
 
 	msg := &message.Message{
 		Message: &message.Message_EncryptedTransaction{
@@ -634,6 +644,8 @@ type JSONRPCError struct {
 }
 
 func sendRawTransaction(rpcUrl string, content string) (string, error) {
+	fmt.Println("Sending raw transaction to the blockchain: ", content)
+
 	// Create the JSON-RPC request
 	request := JSONRPCRequest{
 		JsonRPC: "2.0",

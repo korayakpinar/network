@@ -36,6 +36,7 @@ type Transaction struct {
 	PartialDecryptionCount int
 	CommitteeSize          int
 	Threshold              int
+	AlreadyEncrypted       bool
 }
 
 type RawTransaction struct {
@@ -53,10 +54,11 @@ func NewTransaction(rawTx *string, hash string) *Transaction {
 
 	if rawTx == nil {
 		return &Transaction{
-			Hash:           hash,
-			RawTransaction: nil,
-			Status:         StatusPending,
-			ReceivedAt:     time.Now(),
+			Hash:             hash,
+			RawTransaction:   nil,
+			Status:           StatusPending,
+			ReceivedAt:       time.Now(),
+			AlreadyEncrypted: false,
 		}
 	} else {
 		decodedTx, err := DecodeRawTransaction(*rawTx)
@@ -65,12 +67,29 @@ func NewTransaction(rawTx *string, hash string) *Transaction {
 		}
 
 		return &Transaction{
-			Hash:           hash,
-			RawTransaction: decodedTx,
-			Status:         StatusPending,
-			ReceivedAt:     time.Now(),
+			Hash:             hash,
+			RawTransaction:   decodedTx,
+			Status:           StatusPending,
+			ReceivedAt:       time.Now(),
+			AlreadyEncrypted: false,
 		}
 	}
+
+}
+
+func NewEncryptedTransaction(hash string, encTx *EncryptedTransaction) *Transaction {
+	t := &Transaction{
+		Hash:                 hash,
+		RawTransaction:       nil,
+		EncryptedTransaction: encTx,
+		Status:               StatusPending,
+		ReceivedAt:           time.Now(),
+		CommitteeSize:        len(encTx.Header.PkIDs),
+		Threshold:            int(encTx.Body.Threshold),
+		AlreadyEncrypted:     true,
+	}
+
+	return t
 
 }
 

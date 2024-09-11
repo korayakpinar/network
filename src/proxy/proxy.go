@@ -49,7 +49,7 @@ type EncryptedTransactionRequest struct {
 	Method  string `json:"method"`
 	Params  []struct {
 		Hash        string   `json:"hash"`
-		EncryptedTx string   `json:"encryptedTx"`
+		EncryptedTx []byte   `json:"encryptedTx"`
 		PkIDs       []uint64 `json:"pkIDs"`
 		GammaG2     []byte   `json:"gammaG2"`
 		Threshold   uint64   `json:"threshold"`
@@ -71,6 +71,7 @@ type TransactionResponse struct {
 	Threshold              int                  `json:"threshold"`
 	PartialDecryptionCount int                  `json:"partialDecryptionCount"`
 	PartialDecryptions     map[uint64][]byte    `json:"partialDecryptions,omitempty"`
+	AlreadyEncrypted       bool                 `json:"alreadyEncrypted"`
 }
 
 type RecentTransactionsUpdate struct {
@@ -115,8 +116,7 @@ func (p *Proxy) Start() {
 	}
 
 	log.Printf("HTTPS proxy server is running on port %s", p.Port)
-	log.Fatal(server.ListenAndServe())
-	//log.Fatal(server.ListenAndServeTLS("/app/cert.pem", "/app/key.pem"))
+	log.Fatal(server.ListenAndServeTLS("/app/cert.pem", "/app/key.pem"))
 }
 
 func (p *Proxy) handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -356,6 +356,7 @@ func (p *Proxy) createTransactionResponse(tx *types.Transaction) TransactionResp
 			Threshold:              tx.Threshold,
 			PartialDecryptionCount: tx.PartialDecryptionCount,
 			PartialDecryptions:     partDecs,
+			AlreadyEncrypted:       tx.AlreadyEncrypted,
 		}
 	} else {
 		return TransactionResponse{
@@ -369,6 +370,7 @@ func (p *Proxy) createTransactionResponse(tx *types.Transaction) TransactionResp
 			Threshold:              tx.Threshold,
 			PartialDecryptionCount: tx.PartialDecryptionCount,
 			PartialDecryptions:     partDecs,
+			AlreadyEncrypted:       tx.AlreadyEncrypted,
 		}
 	}
 }
@@ -465,7 +467,7 @@ func (p *Proxy) handleEncryptedTransaction(w http.ResponseWriter, body []byte) {
 			Sa1:       encTx.Sa1,
 			Sa2:       encTx.Sa2,
 			Iv:        encTx.Iv,
-			EncText:   []byte(encTx.EncryptedTx),
+			EncText:   encTx.EncryptedTx,
 			Threshold: encTx.Threshold,
 		},
 	}

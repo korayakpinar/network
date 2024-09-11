@@ -1,6 +1,7 @@
 package mempool
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ func NewMempool() *Mempool {
 }
 
 func (m *Mempool) AddTransaction(tx *types.Transaction) {
-	m.Transactions.Store(tx.Hash, tx)
+	m.Transactions.LoadOrStore(tx.Hash, tx)
 }
 
 func (m *Mempool) GetTransaction(hash string) *types.Transaction {
@@ -127,7 +128,13 @@ func (m *Mempool) CheckTransactionProposed(hash string) bool {
 	return tx != nil && tx.Status >= types.StatusProposed
 }
 
-const MaxNonPendingTransactions = 32
+func (m *Mempool) CheckTransactionAlreadyEncrypted(hash string) bool {
+	tx := m.GetTransaction(hash)
+	fmt.Println("Here is the tx: ", tx)
+	return tx.AlreadyEncrypted
+}
+
+const MaxNonPendingTransactions = 9
 
 func (m *Mempool) GetRecentTransactions() []*types.Transaction {
 	var allTxs []*types.Transaction
