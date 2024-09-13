@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type TransactionStatus int
@@ -212,6 +212,8 @@ func (b *BatchBody) Bytes() []byte {
 }
 
 func DecodeRawTransaction(hexTx string) (*RawTransaction, error) {
+	// Remove "0x" prefix if present
+	hexTx = strings.TrimPrefix(hexTx, "0x")
 
 	txBytes, err := hex.DecodeString(hexTx)
 	if err != nil {
@@ -219,13 +221,13 @@ func DecodeRawTransaction(hexTx string) (*RawTransaction, error) {
 	}
 
 	var ethTx types.Transaction
-	err = rlp.DecodeBytes(txBytes, &ethTx)
+	err = ethTx.UnmarshalBinary(txBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode RLP: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
 	}
 
-	chainID := big.NewInt(17000) //Holesky
-	signer := types.NewEIP155Signer(chainID)
+	chainID := big.NewInt(17000) // Holesky
+	signer := types.LatestSignerForChainID(chainID)
 	from, err := types.Sender(signer, &ethTx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive sender address: %w", err)
@@ -239,6 +241,18 @@ func DecodeRawTransaction(hexTx string) (*RawTransaction, error) {
 		To:       ethTx.To(),
 		Value:    ethTx.Value(),
 		Data:     ethTx.Data(),
+	}
+
+	// Handle different transaction types
+	switch ethTx.Type() {
+	case types.LegacyTxType:
+		rawTx.GasPrice = ethTx.GasPrice()
+	case types.AccessListTxType:
+		rawTx.GasPrice = ethTx.GasPrice()
+		// You might want to handle AccessList here if needed
+	case types.DynamicFeeTxType:
+		rawTx.GasPrice = ethTx.GasFeeCap()
+		// You might want to handle MaxPriorityFeePerGas and MaxFeePerGas here if needed
 	}
 
 	v, r, s := ethTx.RawSignatureValues()
