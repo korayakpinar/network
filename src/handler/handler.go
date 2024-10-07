@@ -308,17 +308,10 @@ func (h *Handler) handlePartialDecryptionBatch(msg *message.Message, leaderIndex
 		h.mempool.AddPartialDecryption(txHash, dec.Signer, dec.PartDec)
 	}
 
-	if int(h.mempool.GetThreshold(txHash)) < h.mempool.GetPartialDecryptionCount(txHash) && !h.mempool.CheckTransactionDecrypted(txHash) {
+	if int(h.mempool.GetThreshold(txHash)) <= h.mempool.GetPartialDecryptionCount(txHash) && !h.mempool.CheckTransactionDecrypted(txHash) {
 		log.Printf("All partial decryptions received for: %s", txHash)
 		encTx := h.mempool.GetTransaction(txHash).EncryptedTransaction
 		encryptedContent := encTx.Body.EncText
-
-		/*
-			pks := make([][]byte, CommitteeSize)
-			for i := 0; i < int(CommitteeSize); i++ {
-				pks[i] = h.GetSignerByIndex(uint64(i)).BLSPublicKey
-			}
-		*/
 
 		partDecs := h.mempool.GetPartialDecryptions(txHash)
 
